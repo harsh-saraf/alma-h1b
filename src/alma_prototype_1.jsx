@@ -50,6 +50,97 @@ const EXCEPTIONS_INIT = [
   { id: "EX-010", beneficiaryId: null, empId: 3, batchId: "B-2027-001", issueType: "Confirmation number missing", severity: "low", owner: "Legal Ops", status: "resolved", recommendedAction: "Log into USCIS portal and retrieve the confirmation number for batch B-2027-001.", notes: "Resolved 2026-03-15. Confirmation CNF-92817364 captured and verified." },
 ];
 
+function computeEmployerReadiness(employer, allExceptions) {
+  const bens = BENEFICIARIES.filter(b => b.empId === employer.id);
+  const rawDupRisks = bens.filter(b => b.duplicate).length;
+  const dupRisks = Math.max(rawDupRisks, employer.duplicates);
+
+  const readyBens   = bens.length > 0 ? bens.filter(b => b.template === "ready").length : employer.complete;
+  const missingInfo = bens.length > 0 ? bens.filter(b => b.validation === "block").length : (employer.candidates - employer.complete);
+  const total       = bens.length > 0 ? bens.length : employer.candidates;
+
+  const exForEmp = allExceptions.filter(e => e.empId === employer.id);
+  const openEx   = exForEmp.filter(e => e.status !== "resolved").length;
+  const highEx   = exForEmp.filter(e => e.severity === "high" && e.status !== "resolved").length;
+
+  const dataScore       = total > 0 ? (readyBens / total) * 100 : 100;
+  const dupScore        = dupRisks === 0 ? 100 : Math.max(0, 100 - dupRisks * 25);
+  const highExScore     = highEx === 0 ? 100 : 0;
+  const petitionerScore = employer.petitionerReady ? 100 : 0;
+  const openExScore     = Math.max(0, 100 - openEx * 15);
+
+  const score = Math.round(
+    dataScore       * 0.35 +
+    highExScore     * 0.25 +
+    petitionerScore * 0.20 +
+    dupScore        * 0.15 +
+    openExScore     * 0.05
+  );
+
+  let state, color;
+  if (score >= 90)      { state = "Ready";            color = "#0f9f6e"; }
+  else if (score >= 70) { state = "Needs Minor Fixes"; color = "#b7791f"; }
+  else if (score >= 40) { state = "At Risk";           color = "#d97706"; }
+  else                  { state = "Blocked";           color = "#c2410c"; }
+
+  let nextAction;
+  if (!employer.petitionerReady) {
+    nextAction = "Confirm petitioner entity and EIN before template generation.";
+  } else if (highEx > 0) {
+    nextAction = `Resolve ${highEx} high-severity exception${highEx > 1 ? "s" : ""} before template generation.`;
+  } else if (missingInfo > 0) {
+    nextAction = `Fix ${missingInfo} validation block${missingInfo > 1 ? "s" : ""} in beneficiary data.`;
+  } else if (dupRisks > 0) {
+    nextAction = `Investigate ${dupRisks} duplicate risk${dupRisks > 1 ? "s" : ""} and clear or document.`;
+  } else if (openEx > 0) {
+    nextAction = `Resolve ${openEx} remaining open exception${openEx > 1 ? "s" : ""}.`;
+  } else {
+    nextAction = "All checks passed — ready to generate template.";
+  }
+
+  return { score, state, color, readyBens, missingInfo, dupRisks, openEx, highEx, nextAction, total };
+}
+
+function computeBatchReadiness(batch, allExceptions) {
+  const batchEx = allExceptions.filter(e => e.batchId === batch.id && e.status !== "resolved");
+  const highEx  = batchEx.filter(e => e.severity === "high").length;
+
+  const reviewDone  = batch.review === "complete";
+  const noExcept    = batch.exceptions === 0 && highEx === 0;
+  const g28Accepted = batch.g28 === "accepted";
+  const paid        = batch.payment === "paid";
+  const submitted   = batch.submission === "submitted";
+
+  let score, stage, blocking;
+
+  if (submitted) {
+    score = 100; stage = "Submitted"; blocking = null;
+  } else if (g28Accepted && paid && reviewDone && noExcept) {
+    score = 88; stage = "Ready to Submit"; blocking = null;
+  } else if (g28Accepted && paid) {
+    score = 72; stage = "Payment Confirmed";
+    blocking = !reviewDone ? "Attorney review pending" : batchEx.length > 0 ? `${batchEx.length} open exception${batchEx.length > 1 ? "s" : ""}` : null;
+  } else if (g28Accepted) {
+    score = 58; stage = "G-28 Accepted"; blocking = "Payment pending";
+  } else if (batch.g28 === "sent" || batch.g28 === "pending") {
+    score = 42; stage = "G-28 Pending"; blocking = "Awaiting client G-28 acceptance";
+  } else if (reviewDone) {
+    score = 30; stage = "Review Complete"; blocking = "G-28 not yet sent";
+  } else if (batch.review === "in_review") {
+    score = 20; stage = "In Review"; blocking = "Attorney review in progress";
+  } else {
+    score = 10; stage = "Not Started"; blocking = "Attorney review not started";
+  }
+
+  if (highEx > 0 && score < 90) {
+    score = Math.min(score, 30);
+    blocking = blocking || `${highEx} high-severity exception${highEx > 1 ? "s" : ""}`;
+  }
+
+  const color = score >= 88 ? "#0f9f6e" : score >= 55 ? "#b7791f" : "#c2410c";
+  return { score, stage, blocking, color };
+}
+
 const StatusBadge = ({ type, label }) => {
   const colors = {
     ready: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
@@ -81,21 +172,14 @@ const StatusBadge = ({ type, label }) => {
   );
 };
 
-const ReadinessScore = ({ employer }) => {
-  const validPct = Math.round((employer.complete / employer.candidates) * 100);
-  const petitioner = employer.petitionerReady ? 100 : 0;
-  const dupResolved = employer.duplicates === 0 ? 100 : Math.max(0, 100 - employer.duplicates * 20);
-  const overall = Math.round((validPct * 0.5 + petitioner * 0.3 + dupResolved * 0.2));
-  const color = overall >= 90 ? "#0f9f6e" : overall >= 60 ? "#b7791f" : "#c2410c";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ width: 60, height: 6, borderRadius: 3, background: "#eef1f6", overflow: "hidden" }}>
-        <div style={{ width: `${overall}%`, height: "100%", borderRadius: 3, background: color, transition: "width 0.5s ease" }} />
-      </div>
-      <span style={{ fontSize: 12, fontWeight: 700, color }}>{overall}%</span>
+const ReadinessBar = ({ score, color, width = 64, height = 6 }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{ width, height, borderRadius: 3, background: "#eef1f6", overflow: "hidden", flexShrink: 0 }}>
+      <div style={{ width: `${score}%`, height: "100%", borderRadius: 3, background: color, transition: "width 0.5s ease" }} />
     </div>
-  );
-};
+    <span style={{ fontSize: 12, fontWeight: 700, color, minWidth: 28 }}>{score}%</span>
+  </div>
+);
 
 const ChecklistItem = ({ done, label }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 13, color: done ? "#0f9f6e" : "#6b7280" }}>
@@ -135,70 +219,93 @@ const ExStatusPill = ({ status }) => {
 
 // ─── SCREENS ──────────────────────────────────────────────
 
-const EmployerDashboard = ({ onSelectEmployer }) => (
-  <div>
-    <div style={{ marginBottom: 24 }}>
-      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Employer Dashboard</h2>
-      <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>FY2027 H-1B Cap Season — 6 employer clients, 202 total candidates</p>
-    </div>
+const EmployerDashboard = ({ onSelectEmployer, exceptions }) => {
+  const empReadiness = useMemo(
+    () => EMPLOYERS.reduce((acc, e) => { acc[e.id] = computeEmployerReadiness(e, exceptions); return acc; }, {}),
+    [exceptions]
+  );
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
-      {[
-        { label: "Ready to File", value: EMPLOYERS.filter(e => e.status === "ready").length, color: "#0f9f6e", bg: "#e9fbf4" },
-        { label: "In Progress", value: EMPLOYERS.filter(e => e.status === "in_progress").length, color: "#b7791f", bg: "#fff7e8" },
-        { label: "Blocked", value: EMPLOYERS.filter(e => e.status === "blocked").length, color: "#c2410c", bg: "#fff1ec" },
-      ].map((s, i) => (
-        <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "16px 18px", border: `1px solid ${s.color}22` }}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
-          <div style={{ fontSize: 13, color: s.color, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
-        </div>
-      ))}
-    </div>
+  const readyCount   = EMPLOYERS.filter(e => empReadiness[e.id].score >= 90).length;
+  const fixesCount   = EMPLOYERS.filter(e => { const s = empReadiness[e.id].score; return s >= 70 && s < 90; }).length;
+  const blockedCount = EMPLOYERS.filter(e => empReadiness[e.id].score < 70).length;
 
-    <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "hidden", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-        <thead>
-          <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
-            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>Employer</th>
-            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>EIN</th>
-            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>Candidates</th>
-            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>Data Complete</th>
-            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>Dup. Risks</th>
-            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>Petitioner</th>
-            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>Readiness</th>
-            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a" }}>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {EMPLOYERS.map(emp => (
-            <tr key={emp.id} onClick={() => onSelectEmployer(emp)} style={{ borderBottom: "1px solid #eef1f6", cursor: "pointer", transition: "background 0.15s" }} onMouseEnter={e => e.currentTarget.style.background = "#f8fbff"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <td style={{ padding: "14px 16px", fontWeight: 600, color: "#1f2937" }}>{emp.name}</td>
-              <td style={{ padding: "14px 16px", color: "#6b7280", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{emp.ein}</td>
-              <td style={{ padding: "14px 16px", textAlign: "center", fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>{emp.candidates}</td>
-              <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                <span style={{ fontWeight: 700, fontFamily: "'DM Mono', monospace", color: emp.complete === emp.candidates ? "#0f9f6e" : "#b7791f" }}>
-                  {emp.complete}/{emp.candidates}
-                </span>
-              </td>
-              <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                {emp.duplicates > 0 ? <span style={{ fontWeight: 700, color: "#c2410c", fontFamily: "'DM Mono', monospace" }}>{emp.duplicates}</span> : <span style={{ color: "#0f9f6e" }}>—</span>}
-              </td>
-              <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                <StatusBadge type={emp.petitionerReady ? "ready" : "blocked"} label={emp.petitionerReady ? "Ready" : "Incomplete"} />
-              </td>
-              <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                <ReadinessScore employer={emp} />
-              </td>
-              <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                <StatusBadge type={emp.status} />
-              </td>
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Employer Dashboard</h2>
+        <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>FY2027 H-1B Cap Season — 6 employer clients, 202 total candidates</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
+        {[
+          { label: "Ready (≥90%)",          value: readyCount,   color: "#0f9f6e", bg: "#e9fbf4" },
+          { label: "Needs Minor Fixes (70–89%)", value: fixesCount, color: "#b7791f", bg: "#fff7e8" },
+          { label: "Blocked (<70%)",         value: blockedCount, color: "#c2410c", bg: "#fff1ec" },
+        ].map((s, i) => (
+          <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "16px 18px", border: `1px solid ${s.color}22` }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
+            <div style={{ fontSize: 13, color: s.color, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "auto", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 860 }}>
+          <thead>
+            <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
+              {["Employer", "EIN", "Beneficiaries", "Dup. Risks", "Open Ex.", "Petitioner", "Readiness", "Next Action"].map(h => (
+                <th key={h} style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {EMPLOYERS.map(emp => {
+              const r = empReadiness[emp.id];
+              return (
+                <tr key={emp.id} onClick={() => onSelectEmployer(emp)}
+                  style={{ borderBottom: "1px solid #eef1f6", cursor: "pointer", transition: "background 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f8fbff"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  <td style={{ padding: "14px 14px", fontWeight: 600, color: "#1f2937", whiteSpace: "nowrap" }}>{emp.name}</td>
+                  <td style={{ padding: "14px 14px", color: "#6b7280", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{emp.ein}</td>
+                  <td style={{ padding: "14px 14px" }}>
+                    <span style={{ fontWeight: 700, fontFamily: "'DM Mono', monospace", color: r.readyBens === r.total ? "#0f9f6e" : "#b7791f" }}>
+                      {r.readyBens}/{r.total}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 4 }}>ready</span>
+                  </td>
+                  <td style={{ padding: "14px 14px" }}>
+                    {r.dupRisks > 0
+                      ? <span style={{ fontWeight: 700, color: "#c2410c", fontFamily: "'DM Mono', monospace" }}>{r.dupRisks}</span>
+                      : <span style={{ color: "#0f9f6e" }}>—</span>}
+                  </td>
+                  <td style={{ padding: "14px 14px" }}>
+                    {r.openEx > 0
+                      ? <span style={{ fontWeight: 700, color: r.highEx > 0 ? "#c2410c" : "#b7791f", fontFamily: "'DM Mono', monospace" }}>{r.openEx}</span>
+                      : <span style={{ color: "#0f9f6e" }}>—</span>}
+                  </td>
+                  <td style={{ padding: "14px 14px" }}>
+                    <StatusBadge type={emp.petitionerReady ? "ready" : "blocked"} label={emp.petitionerReady ? "Ready" : "Incomplete"} />
+                  </td>
+                  <td style={{ padding: "14px 14px", minWidth: 130 }}>
+                    <ReadinessBar score={r.score} color={r.color} />
+                    <div style={{ fontSize: 10, color: r.color, fontWeight: 600, marginTop: 3 }}>{r.state}</div>
+                  </td>
+                  <td style={{ padding: "14px 14px", fontSize: 12, color: "#6b7280", maxWidth: 220 }}>
+                    <span title={r.nextAction} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {r.nextAction}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const DataHub = ({ employer, onBack, exceptions }) => {
   const [filter, setFilter] = useState("all");
@@ -322,9 +429,14 @@ const DataHub = ({ employer, onBack, exceptions }) => {
   );
 };
 
-const FilingControlCenter = () => {
+const FilingControlCenter = ({ exceptions }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const batch = selectedBatch ? BATCHES.find(b => b.id === selectedBatch) : null;
+
+  const batchReadiness = useMemo(
+    () => BATCHES.reduce((acc, b) => { acc[b.id] = computeBatchReadiness(b, exceptions); return acc; }, {}),
+    [exceptions]
+  );
 
   return (
     <div>
@@ -335,72 +447,112 @@ const FilingControlCenter = () => {
 
       <div style={{ display: "grid", gridTemplateColumns: selectedBatch ? "1fr 340px" : "1fr", gap: 18 }}>
         <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "auto", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 860 }}>
             <thead>
               <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
-                {["Batch ID", "Employer", "Petitioner Entity", "Count", "Review", "Exceptions", "G-28", "Payment", "Status"].map(h => (
+                {["Batch ID", "Employer", "Count", "Readiness", "Stage", "Blocking Issue", "G-28", "Payment", "Status"].map(h => (
                   <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {BATCHES.map(b => (
-                <tr key={b.id} onClick={() => setSelectedBatch(b.id)} style={{ borderBottom: "1px solid #eef1f6", cursor: "pointer", background: selectedBatch === b.id ? "#f8fbff" : "transparent", transition: "background 0.15s" }} onMouseEnter={e => { if (selectedBatch !== b.id) e.currentTarget.style.background = "#fcfdff"; }} onMouseLeave={e => { if (selectedBatch !== b.id) e.currentTarget.style.background = "transparent"; }}>
-                  <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 11 }}>{b.id}</td>
-                  <td style={{ padding: "10px 12px", fontWeight: 600 }}>{b.empName}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 11, color: "#6b7280" }}>{b.petitioner}</td>
-                  <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>{b.count}</td>
-                  <td style={{ padding: "10px 12px" }}><StatusBadge type={b.review} label={b.review.replace(/_/g, " ")} /></td>
-                  <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                    {b.exceptions > 0 ? <span style={{ fontWeight: 700, color: "#c2410c", fontFamily: "'DM Mono', monospace" }}>{b.exceptions}</span> : <span style={{ color: "#0f9f6e" }}>0</span>}
-                  </td>
-                  <td style={{ padding: "10px 12px" }}><StatusBadge type={b.g28} label={b.g28.replace(/_/g, " ")} /></td>
-                  <td style={{ padding: "10px 12px" }}><StatusBadge type={b.payment} /></td>
-                  <td style={{ padding: "10px 12px" }}><StatusBadge type={b.submission === "submitted" ? "submitted" : b.submission} label={b.submission.replace(/_/g, " ")} /></td>
-                </tr>
-              ))}
+              {BATCHES.map(b => {
+                const br = batchReadiness[b.id];
+                return (
+                  <tr key={b.id} onClick={() => setSelectedBatch(b.id)}
+                    style={{ borderBottom: "1px solid #eef1f6", cursor: "pointer", background: selectedBatch === b.id ? "#f8fbff" : "transparent", transition: "background 0.15s" }}
+                    onMouseEnter={e => { if (selectedBatch !== b.id) e.currentTarget.style.background = "#fcfdff"; }}
+                    onMouseLeave={e => { if (selectedBatch !== b.id) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 11 }}>{b.id}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{b.empName}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>{b.count}</td>
+                    <td style={{ padding: "10px 12px", minWidth: 110 }}>
+                      <ReadinessBar score={br.score} color={br.color} width={48} height={5} />
+                    </td>
+                    <td style={{ padding: "10px 12px", fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" }}>{br.stage}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 11, maxWidth: 160 }}>
+                      {br.blocking
+                        ? <span style={{ color: "#c2410c", fontWeight: 600 }} title={br.blocking}>{br.blocking}</span>
+                        : <span style={{ color: "#0f9f6e" }}>—</span>}
+                    </td>
+                    <td style={{ padding: "10px 12px" }}><StatusBadge type={b.g28} label={b.g28.replace(/_/g, " ")} /></td>
+                    <td style={{ padding: "10px 12px" }}><StatusBadge type={b.payment} /></td>
+                    <td style={{ padding: "10px 12px" }}><StatusBadge type={b.submission === "submitted" ? "submitted" : b.submission} label={b.submission.replace(/_/g, " ")} /></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
-        {batch && (
-          <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", padding: 18, boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{batch.id}</h3>
-              <button onClick={() => setSelectedBatch(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b7280" }}>✕</button>
-            </div>
-            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-              <div><strong>Employer:</strong> {batch.empName}</div>
-              <div><strong>Petitioner:</strong> {batch.petitioner}</div>
-              <div><strong>Beneficiaries:</strong> {batch.count}</div>
-            </div>
+        {batch && (() => {
+          const br = batchReadiness[batch.id];
+          return (
+            <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", padding: 18, boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{batch.id}</h3>
+                <button onClick={() => setSelectedBatch(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b7280" }}>✕</button>
+              </div>
 
-            <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 10 }}>Submission Readiness</div>
-            <ChecklistItem done={batch.review === "complete"} label="Attorney review complete" />
-            <ChecklistItem done={batch.exceptions === 0} label="All exceptions resolved" />
-            <ChecklistItem done={batch.g28 === "accepted"} label="G-28 accepted by client" />
-            <ChecklistItem done={batch.payment === "paid"} label="Payment confirmed" />
-            <ChecklistItem done={batch.submission === "submitted"} label="Submitted to USCIS" />
-
-            {batch.submission !== "submitted" && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ padding: 12, borderRadius: 10, background: batch.g28 === "pending" || batch.g28 === "sent" ? "#fff7e8" : "#f7f9fc", border: `1px solid ${batch.g28 === "pending" ? "#f1d8a6" : "#dbe3ee"}`, fontSize: 12, color: "#6b7280" }}>
-                  {batch.g28 === "pending" && <><span style={{ color: "#b7791f", fontWeight: 700 }}>⚠ G-28 pending:</span> Sent 2 days ago. Auto-reminder scheduled in 24h.</>}
-                  {batch.g28 === "sent" && <><span style={{ color: "#2952cc", fontWeight: 700 }}>ℹ G-28 sent:</span> Awaiting company admin action.</>}
-                  {batch.g28 === "not_sent" && <>G-28 not yet prepared. Complete attorney review first.</>}
-                  {batch.g28 === "accepted" && batch.payment === "unpaid" && <><span style={{ color: "#b7791f", fontWeight: 700 }}>→ Next step:</span> Complete payment via Pay.gov</>}
+              <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: br.score >= 88 ? "#e9fbf4" : br.score >= 55 ? "#fff7e8" : "#fff1ec", border: `1px solid ${br.color}33` }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em" }}>Readiness</div>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: br.color, fontFamily: "'DM Mono', monospace" }}>{br.score}%</span>
                 </div>
+                <div style={{ width: "100%", height: 7, borderRadius: 4, background: "#eef1f6", overflow: "hidden", marginBottom: 8 }}>
+                  <div style={{ width: `${br.score}%`, height: "100%", borderRadius: 4, background: br.color, transition: "width 0.5s ease" }} />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: br.color }}>{br.stage}</div>
+                {br.blocking && (
+                  <div style={{ marginTop: 6, fontSize: 11, color: "#c2410c", fontWeight: 600 }}>⚑ {br.blocking}</div>
+                )}
               </div>
-            )}
 
-            {batch.confirmation && (
-              <div style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#e9fbf4", border: "1px solid #b5ecd7" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#0f9f6e", marginBottom: 4 }}>Confirmed</div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700 }}>{batch.confirmation}</div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+                <div><strong>Employer:</strong> {batch.empName}</div>
+                <div><strong>Petitioner:</strong> {batch.petitioner}</div>
+                <div><strong>Beneficiaries:</strong> {batch.count}</div>
               </div>
-            )}
-          </div>
-        )}
+
+              <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 10 }}>Submission Checklist</div>
+              <ChecklistItem done={batch.review === "complete"} label="Attorney review complete" />
+              <ChecklistItem done={batch.exceptions === 0} label="All exceptions resolved" />
+              <ChecklistItem done={batch.g28 === "accepted"} label="G-28 accepted by client" />
+              <ChecklistItem done={batch.payment === "paid"} label="Payment confirmed" />
+              <ChecklistItem done={batch.submission === "submitted"} label="Submitted to USCIS" />
+
+              {batch.submission !== "submitted" && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ padding: 12, borderRadius: 10, background: batch.g28 === "pending" || batch.g28 === "sent" ? "#fff7e8" : "#f7f9fc", border: `1px solid ${batch.g28 === "pending" ? "#f1d8a6" : "#dbe3ee"}`, fontSize: 12, color: "#6b7280" }}>
+                    {batch.g28 === "pending" && <><span style={{ color: "#b7791f", fontWeight: 700 }}>⚠ G-28 pending:</span> Sent 2 days ago. Auto-reminder scheduled in 24h.</>}
+                    {batch.g28 === "sent" && <><span style={{ color: "#2952cc", fontWeight: 700 }}>ℹ G-28 sent:</span> Awaiting company admin action.</>}
+                    {batch.g28 === "not_sent" && <>G-28 not yet prepared. Complete attorney review first.</>}
+                    {batch.g28 === "accepted" && batch.payment === "unpaid" && <><span style={{ color: "#b7791f", fontWeight: 700 }}>→ Next step:</span> Complete payment via Pay.gov</>}
+                  </div>
+                </div>
+              )}
+
+              {batch.confirmation && (
+                <div style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#e9fbf4", border: "1px solid #b5ecd7" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#0f9f6e", marginBottom: 4 }}>Confirmed</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700 }}>{batch.confirmation}</div>
+                </div>
+              )}
+
+              {batch.submission !== "submitted" && (
+                <div style={{ marginTop: 16 }}>
+                  <button
+                    disabled={!!br.blocking}
+                    style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: "none", background: br.blocking ? "#dbe3ee" : "#2952cc", color: br.blocking ? "#6b7280" : "#fff", fontSize: 13, fontWeight: 700, cursor: br.blocking ? "not-allowed" : "pointer" }}
+                  >
+                    {br.blocking ? `Blocked: ${br.blocking}` : "Mark Ready for Submission"}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -748,7 +900,7 @@ export default function AlmaPrototype() {
       {/* Main content */}
       <div style={{ flex: 1, padding: 28, overflow: "auto" }}>
         {screen === "dashboard" && (
-          <EmployerDashboard onSelectEmployer={(emp) => { setSelectedEmployer(emp); setScreen("datahub"); }} />
+          <EmployerDashboard onSelectEmployer={(emp) => { setSelectedEmployer(emp); setScreen("datahub"); }} exceptions={exceptions} />
         )}
         {screen === "datahub" && (
           <DataHub employer={selectedEmployer || EMPLOYERS[0]} onBack={() => setScreen("dashboard")} exceptions={exceptions} />
@@ -756,7 +908,7 @@ export default function AlmaPrototype() {
         {screen === "exceptions" && (
           <ExceptionReviewQueue exceptions={exceptions} setExceptions={setExceptions} />
         )}
-        {screen === "filing" && <FilingControlCenter />}
+        {screen === "filing" && <FilingControlCenter exceptions={exceptions} />}
         {screen === "confirmation" && <ConfirmationTracker />}
       </div>
     </div>
