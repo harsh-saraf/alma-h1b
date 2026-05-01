@@ -37,6 +37,19 @@ const CONFIRMATIONS = [
   { batchId: "B-2027-006", empName: "Vantage Cloud Solutions", confirmation: "CNF-56473829", status: "Not Selected", submittedAt: "2026-03-15 14:05 EST", expected: 18, confirmed: 18, auditComplete: false },
 ];
 
+const EXCEPTIONS_INIT = [
+  { id: "EX-001", beneficiaryId: 8, empId: 1, batchId: "B-2027-002", issueType: "Missing passport number", severity: "high", owner: "Employer HR", status: "open", recommendedAction: "Contact Meridian HR to obtain passport number from Sanjay Gupta before template generation.", notes: "" },
+  { id: "EX-002", beneficiaryId: 9, empId: 1, batchId: "B-2027-002", issueType: "Invalid country value", severity: "high", owner: "Legal Ops", status: "open", recommendedAction: "Update COB/COC from 'South Korea' to 'Korea, South' to match the USCIS accepted country list.", notes: "" },
+  { id: "EX-003", beneficiaryId: 6, empId: 1, batchId: "B-2027-002", issueType: "Possible duplicate passport", severity: "high", owner: "Attorney", status: "in_review", recommendedAction: "Compare passport numbers and DOBs across employers. Remove duplicate or document as distinct individuals.", notes: "Cross-employer fuzzy match flagged against Apex Robotics record (passport R6291048). Attorney reviewing." },
+  { id: "EX-004", beneficiaryId: 5, empId: 1, batchId: "B-2027-002", issueType: "Invalid country value", severity: "medium", owner: "Legal Ops", status: "open", recommendedAction: "Verify 'Japan' matches the correct USCIS-accepted country list entry for this beneficiary.", notes: "" },
+  { id: "EX-005", beneficiaryId: 3, empId: 1, batchId: "B-2027-002", issueType: "Missing OEWS wage level", severity: "medium", owner: "Employer HR", status: "waiting_on_client", recommendedAction: "Request OEWS wage level (I–IV) from Meridian HR for SOC code 29-1228.", notes: "Reminder email sent to Meridian HR on 2026-04-28. Follow up by 2026-05-03 if no response." },
+  { id: "EX-006", beneficiaryId: null, empId: 4, batchId: null, issueType: "Petitioner entity mismatch", severity: "high", owner: "Attorney", status: "open", recommendedAction: "Verify correct legal entity name and EIN for Lumen Therapeutics before generating template. Confirm subsidiary vs. parent entity.", notes: "" },
+  { id: "EX-007", beneficiaryId: null, empId: 2, batchId: "B-2027-004", issueType: "Company admin rejected batch", severity: "high", owner: "Legal Ops", status: "open", recommendedAction: "Contact Apex Robotics company admin to determine rejection reason. Correct and resubmit G-28.", notes: "" },
+  { id: "EX-008", beneficiaryId: null, empId: 6, batchId: "B-2027-006", issueType: "Same name + DOB match", severity: "medium", owner: "Attorney", status: "in_review", recommendedAction: "Cross-check Vantage Cloud beneficiary records against NovaBridge submission for same-name DOB overlap.", notes: "Two records share 'Chen Wei' with DOB 11/02/1991 across different employers." },
+  { id: "EX-009", beneficiaryId: null, empId: 4, batchId: null, issueType: "Missing SOC code", severity: "medium", owner: "Employer HR", status: "waiting_on_client", recommendedAction: "Request job classification SOC codes from Lumen Therapeutics HR for 26 pending beneficiaries.", notes: "Initial request sent 2026-04-25. Follow-up sent 2026-04-30." },
+  { id: "EX-010", beneficiaryId: null, empId: 3, batchId: "B-2027-001", issueType: "Confirmation number missing", severity: "low", owner: "Legal Ops", status: "resolved", recommendedAction: "Log into USCIS portal and retrieve the confirmation number for batch B-2027-001.", notes: "Resolved 2026-03-15. Confirmation CNF-92817364 captured and verified." },
+];
+
 const StatusBadge = ({ type, label }) => {
   const colors = {
     ready: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
@@ -89,9 +102,36 @@ const ChecklistItem = ({ done, label }) => (
     <span style={{ width: 18, height: 18, borderRadius: 4, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done ? "#e9fbf4" : "#f7f9fc", border: `1.5px solid ${done ? "#0f9f6e" : "#dbe3ee"}`, fontSize: 11, fontWeight: 700 }}>
       {done ? "✓" : ""}
     </span>
-    <span style={{ textDecoration: done ? "none" : "none" }}>{label}</span>
+    <span>{label}</span>
   </div>
 );
+
+const SEVERITY_STYLES = {
+  high:   { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9", label: "High" },
+  medium: { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6", label: "Medium" },
+  low:    { bg: "#eff4ff", color: "#2952cc", border: "#d8e2ff", label: "Low" },
+};
+const STATUS_STYLES = {
+  open:              { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9", label: "Open" },
+  in_review:         { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6", label: "In Review" },
+  waiting_on_client: { bg: "#eff4ff", color: "#2952cc", border: "#d8e2ff", label: "Waiting on Client" },
+  resolved:          { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7", label: "Resolved" },
+};
+
+const pill = (styles) => ({
+  display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+  background: styles.bg, color: styles.color, border: `1px solid ${styles.border}`,
+});
+
+const SeverityBadge = ({ severity }) => {
+  const s = SEVERITY_STYLES[severity] || SEVERITY_STYLES.low;
+  return <span style={pill(s)}>{s.label}</span>;
+};
+
+const ExStatusPill = ({ status }) => {
+  const s = STATUS_STYLES[status] || STATUS_STYLES.open;
+  return <span style={pill(s)}>{s.label}</span>;
+};
 
 // ─── SCREENS ──────────────────────────────────────────────
 
@@ -160,7 +200,7 @@ const EmployerDashboard = ({ onSelectEmployer }) => (
   </div>
 );
 
-const DataHub = ({ employer, onBack }) => {
+const DataHub = ({ employer, onBack, exceptions }) => {
   const [filter, setFilter] = useState("all");
   const bens = BENEFICIARIES.filter(b => b.empId === (employer?.id || 1));
   const filtered = filter === "all" ? bens : bens.filter(b => b.validation === filter || (filter === "duplicate" && b.duplicate));
@@ -266,11 +306,18 @@ const DataHub = ({ employer, onBack }) => {
         </table>
       </div>
 
-      <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
-        <button disabled={blockCount > 0} style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: blockCount > 0 ? "#dbe3ee" : "#2952cc", color: blockCount > 0 ? "#6b7280" : "#fff", fontSize: 14, fontWeight: 700, cursor: blockCount > 0 ? "not-allowed" : "pointer" }}>
-          {blockCount > 0 ? `Resolve ${blockCount} blocks to generate template` : "Generate USCIS Template"}
-        </button>
-      </div>
+      {(() => {
+        const hasHighEx = exceptions?.some(e => e.empId === (employer?.id || 1) && e.severity === "high" && e.status !== "resolved");
+        const blocked = blockCount > 0 || hasHighEx;
+        const label = blockCount > 0 ? `Resolve ${blockCount} validation blocks first` : hasHighEx ? "Resolve open high-severity exceptions first" : "Generate USCIS Template";
+        return (
+          <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <button disabled={blocked} style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: blocked ? "#dbe3ee" : "#2952cc", color: blocked ? "#6b7280" : "#fff", fontSize: 14, fontWeight: 700, cursor: blocked ? "not-allowed" : "pointer" }}>
+              {label}
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 };
@@ -420,17 +467,247 @@ const ConfirmationTracker = () => (
   </div>
 );
 
+// ─── EXCEPTION REVIEW QUEUE ───────────────────────────────
+
+const ExceptionReviewQueue = ({ exceptions, setExceptions }) => {
+  const [filters, setFilters] = useState({ severity: "all", owner: "all", empId: "all", status: "all" });
+  const [reviewEx, setReviewEx] = useState(null);
+  const [noteInput, setNoteInput] = useState("");
+
+  const getBen = (id) => BENEFICIARIES.find(b => b.id === id);
+  const getEmp = (id) => EMPLOYERS.find(e => e.id === id);
+
+  const openCount    = exceptions.filter(e => e.status !== "resolved").length;
+  const highCount    = exceptions.filter(e => e.severity === "high" && e.status !== "resolved").length;
+  const attCount     = exceptions.filter(e => e.owner === "Attorney" && e.status !== "resolved").length;
+  const waitingCount = exceptions.filter(e => e.status === "waiting_on_client").length;
+
+  const filtered = exceptions.filter(e => {
+    if (filters.severity !== "all" && e.severity !== filters.severity) return false;
+    if (filters.owner !== "all" && e.owner !== filters.owner) return false;
+    if (filters.empId !== "all" && e.empId !== parseInt(filters.empId)) return false;
+    if (filters.status !== "all" && e.status !== filters.status) return false;
+    return true;
+  });
+
+  const updateEx = (id, patch) => {
+    setExceptions(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+    setReviewEx(prev => prev?.id === id ? { ...prev, ...patch } : prev);
+  };
+
+  const openReview = (ex) => {
+    setReviewEx(ex);
+    setNoteInput(ex.notes || "");
+    if (ex.status === "open" && ex.owner === "Attorney") updateEx(ex.id, { status: "in_review" });
+  };
+
+  const btnStyle = (bg, color) => ({
+    padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700,
+    cursor: "pointer", border: "none", background: bg, color,
+  });
+
+  const getCtaButtons = (ex) => {
+    if (ex.status === "resolved") return <span style={{ color: "#0f9f6e", fontSize: 11, fontWeight: 600 }}>✓ Resolved</span>;
+    const reviewBtn   = <button onClick={() => openReview(ex)} style={btnStyle("#eff4ff", "#2952cc")}>Review</button>;
+    const resolveBtn  = <button onClick={() => updateEx(ex.id, { status: "resolved" })} style={btnStyle("#e9fbf4", "#0f9f6e")}>Mark Resolved</button>;
+    const requestBtn  = <button onClick={() => updateEx(ex.id, { status: "waiting_on_client" })} style={btnStyle("#fff7e8", "#b7791f")}>Request Info</button>;
+    const escalateBtn = <button onClick={() => updateEx(ex.id, { owner: "Attorney", status: "in_review" })} style={btnStyle("#fff1ec", "#c2410c")}>Escalate</button>;
+
+    if (ex.status === "waiting_on_client") return <div style={{ display: "flex", gap: 4 }}>{resolveBtn}</div>;
+    if (ex.status === "in_review") return <div style={{ display: "flex", gap: 4 }}>{reviewBtn}{resolveBtn}</div>;
+    if (ex.owner === "Employer HR" || ex.owner === "Company Admin") return <div style={{ display: "flex", gap: 4 }}>{requestBtn}</div>;
+    if (ex.severity === "high" && ex.owner === "Legal Ops") return <div style={{ display: "flex", gap: 4 }}>{reviewBtn}{escalateBtn}</div>;
+    return <div style={{ display: "flex", gap: 4 }}>{reviewBtn}</div>;
+  };
+
+  const filterDefs = [
+    { key: "severity", options: [{ value: "all", label: "All Severities" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }] },
+    { key: "owner", options: [{ value: "all", label: "All Owners" }, { value: "Attorney", label: "Attorney" }, { value: "Legal Ops", label: "Legal Ops" }, { value: "Employer HR", label: "Employer HR" }, { value: "Company Admin", label: "Company Admin" }] },
+    { key: "empId", options: [{ value: "all", label: "All Clients" }, ...EMPLOYERS.map(e => ({ value: String(e.id), label: e.name }))] },
+    { key: "status", options: [{ value: "all", label: "All Statuses" }, { value: "open", label: "Open" }, { value: "in_review", label: "In Review" }, { value: "waiting_on_client", label: "Waiting on Client" }, { value: "resolved", label: "Resolved" }] },
+  ];
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Exception Review Queue</h2>
+        <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>Flagged issues across all clients requiring attorney or legal ops attention</p>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+        {[
+          { label: "Open Exceptions",       value: openCount,    color: "#c2410c", bg: "#fff1ec", border: "#f4c8b9" },
+          { label: "High Severity",          value: highCount,    color: "#c2410c", bg: "#fff1ec", border: "#f4c8b9" },
+          { label: "Assigned to Attorney",   value: attCount,     color: "#6d28d9", bg: "#f5f0ff", border: "#e0d4f7" },
+          { label: "Waiting on Client",      value: waitingCount, color: "#2952cc", bg: "#eff4ff", border: "#d8e2ff" },
+        ].map((s, i) => (
+          <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "16px 18px", border: `1px solid ${s.border}` }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
+            <div style={{ fontSize: 13, color: s.color, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#50627a", textTransform: "uppercase", letterSpacing: "0.04em" }}>Filter:</span>
+        {filterDefs.map(f => (
+          <select key={f.key} value={filters[f.key]} onChange={e => setFilters(prev => ({ ...prev, [f.key]: e.target.value }))}
+            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #dbe3ee", fontSize: 12, color: "#1f2937", background: "#fff", cursor: "pointer" }}>
+            {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        ))}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#6b7280" }}>{filtered.length} exception{filtered.length !== 1 ? "s" : ""}</span>
+      </div>
+
+      {/* Table + review panel */}
+      <div style={{ display: "grid", gridTemplateColumns: reviewEx ? "1fr 380px" : "1fr", gap: 16, alignItems: "start" }}>
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "auto", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 920 }}>
+            <thead>
+              <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
+                {["ID", "Beneficiary", "Client", "Batch", "Issue Type", "Severity", "Owner", "Status", "Recommended Action", "Action"].map(h => (
+                  <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(ex => {
+                const ben = ex.beneficiaryId ? getBen(ex.beneficiaryId) : null;
+                const emp = getEmp(ex.empId);
+                return (
+                  <tr key={ex.id} style={{ borderBottom: "1px solid #eef1f6", background: reviewEx?.id === ex.id ? "#f8fbff" : "transparent" }}>
+                    <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7280" }}>{ex.id}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{ben ? ben.name : <span style={{ color: "#6b7280" }}>—</span>}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 11 }}>{emp?.name}</td>
+                    <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{ex.batchId || "—"}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{ex.issueType}</td>
+                    <td style={{ padding: "10px 12px" }}><SeverityBadge severity={ex.severity} /></td>
+                    <td style={{ padding: "10px 12px", fontSize: 11 }}>{ex.owner}</td>
+                    <td style={{ padding: "10px 12px" }}><ExStatusPill status={ex.status} /></td>
+                    <td style={{ padding: "10px 12px", fontSize: 11, color: "#6b7280", maxWidth: 200 }}>{ex.recommendedAction}</td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{getCtaButtons(ex)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filtered.length === 0 && (
+            <div style={{ padding: 48, textAlign: "center", color: "#6b7280", fontSize: 14 }}>No exceptions match the current filters.</div>
+          )}
+        </div>
+
+        {/* Review panel */}
+        {reviewEx && (() => {
+          const ben = reviewEx.beneficiaryId ? getBen(reviewEx.beneficiaryId) : null;
+          const emp = getEmp(reviewEx.empId);
+          return (
+            <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", padding: 18, boxShadow: "0 4px 20px rgba(23,43,77,0.06)", position: "sticky", top: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7280", marginBottom: 3 }}>{reviewEx.id}</div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, lineHeight: 1.3 }}>{reviewEx.issueType}</h3>
+                </div>
+                <button onClick={() => setReviewEx(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b7280", padding: 0, lineHeight: 1 }}>✕</button>
+              </div>
+
+              <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                <SeverityBadge severity={reviewEx.severity} />
+                <ExStatusPill status={reviewEx.status} />
+              </div>
+
+              {ben && (
+                <div style={{ background: "#f8fbff", borderRadius: 10, border: "1px solid #dbe3ee", padding: 12, marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 8 }}>Beneficiary</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{ben.name}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px", fontSize: 11, color: "#6b7280" }}>
+                    <div><strong style={{ color: "#1f2937" }}>Passport:</strong> {ben.passport || <span style={{ color: "#c2410c" }}>MISSING</span>}</div>
+                    <div><strong style={{ color: "#1f2937" }}>DOB:</strong> {ben.dob}</div>
+                    <div><strong style={{ color: "#1f2937" }}>COB:</strong> <span style={{ color: ben.cob === "South Korea" || ben.cob === "Japan" ? "#c2410c" : "inherit" }}>{ben.cob}</span></div>
+                    <div><strong style={{ color: "#1f2937" }}>SOC:</strong> {ben.soc}</div>
+                    <div><strong style={{ color: "#1f2937" }}>Wage:</strong> {ben.wage || <span style={{ color: "#c2410c" }}>MISSING</span>}</div>
+                    <div><strong style={{ color: "#1f2937" }}>Location:</strong> {ben.city}, {ben.state}</div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 4 }}>Client</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{emp?.name}</div>
+                {reviewEx.batchId && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Batch: <span style={{ fontFamily: "'DM Mono', monospace" }}>{reviewEx.batchId}</span></div>}
+              </div>
+
+              <div style={{ marginBottom: 14, padding: 12, borderRadius: 10, background: "#fffcf5", border: "1px solid #f1d8a6" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#b7791f", letterSpacing: "0.04em", marginBottom: 6 }}>Recommended Action</div>
+                <div style={{ fontSize: 12, color: "#1f2937", lineHeight: 1.5 }}>{reviewEx.recommendedAction}</div>
+              </div>
+
+              {reviewEx.notes && (
+                <div style={{ marginBottom: 14, padding: 12, borderRadius: 10, background: "#f7f9fc", border: "1px solid #dbe3ee" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 4 }}>Notes</div>
+                  <div style={{ fontSize: 12, color: "#1f2937", lineHeight: 1.5 }}>{reviewEx.notes}</div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 6 }}>Add Note</div>
+                <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Add a note..."
+                  style={{ width: "100%", minHeight: 72, padding: 10, borderRadius: 8, border: "1px solid #dbe3ee", fontSize: 12, fontFamily: "inherit", resize: "vertical", color: "#1f2937", boxSizing: "border-box" }} />
+                <button onClick={() => updateEx(reviewEx.id, { notes: noteInput })}
+                  style={{ marginTop: 6, padding: "6px 14px", borderRadius: 8, border: "1px solid #dbe3ee", background: "#f7f9fc", color: "#1f2937", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  Save Note
+                </button>
+              </div>
+
+              {reviewEx.status !== "resolved" ? (
+                <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 2 }}>Actions</div>
+                  <button onClick={() => updateEx(reviewEx.id, { status: "resolved" })}
+                    style={{ padding: "9px 0", borderRadius: 10, border: "none", background: "#e9fbf4", color: "#0f9f6e", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    Mark Resolved
+                  </button>
+                  {reviewEx.status !== "waiting_on_client" && (
+                    <button onClick={() => updateEx(reviewEx.id, { status: "waiting_on_client" })}
+                      style={{ padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7e8", color: "#b7791f", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                      Request Info from Client
+                    </button>
+                  )}
+                  {reviewEx.owner !== "Attorney" && (
+                    <button onClick={() => updateEx(reviewEx.id, { owner: "Attorney", status: "in_review" })}
+                      style={{ padding: "9px 0", borderRadius: 10, border: "none", background: "#fff1ec", color: "#c2410c", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                      Escalate to Attorney
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 16, padding: 12, borderRadius: 10, background: "#e9fbf4", border: "1px solid #b5ecd7", textAlign: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0f9f6e" }}>✓ Exception Resolved</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    </div>
+  );
+};
+
 // ─── MAIN APP ──────────────────────────────────────────────
 
 export default function AlmaPrototype() {
   const [screen, setScreen] = useState("dashboard");
   const [selectedEmployer, setSelectedEmployer] = useState(null);
+  const [exceptions, setExceptions] = useState(EXCEPTIONS_INIT);
+
+  const openExCount = exceptions.filter(e => e.status !== "resolved").length;
 
   const nav = [
-    { id: "dashboard", label: "Employers", icon: "◫" },
-    { id: "datahub", label: "Data Hub", icon: "◰" },
-    { id: "filing", label: "Filing Control", icon: "◳" },
-    { id: "confirmation", label: "Confirmations", icon: "◲" },
+    { id: "dashboard",   label: "Employers",       icon: "◫" },
+    { id: "datahub",     label: "Data Hub",         icon: "◰" },
+    { id: "exceptions",  label: "Exception Queue",  icon: "⚑" },
+    { id: "filing",      label: "Filing Control",   icon: "◳" },
+    { id: "confirmation",label: "Confirmations",    icon: "◲" },
   ];
 
   return (
@@ -453,7 +730,12 @@ export default function AlmaPrototype() {
               textAlign: "left", marginBottom: 4, transition: "all 0.15s", fontFamily: "inherit",
             }}>
               <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{n.icon}</span>
-              {n.label}
+              <span style={{ flex: 1 }}>{n.label}</span>
+              {n.id === "exceptions" && openExCount > 0 && (
+                <span style={{ background: "#c2410c", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 700, padding: "1px 6px", lineHeight: "16px" }}>
+                  {openExCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -469,7 +751,10 @@ export default function AlmaPrototype() {
           <EmployerDashboard onSelectEmployer={(emp) => { setSelectedEmployer(emp); setScreen("datahub"); }} />
         )}
         {screen === "datahub" && (
-          <DataHub employer={selectedEmployer || EMPLOYERS[0]} onBack={() => setScreen("dashboard")} />
+          <DataHub employer={selectedEmployer || EMPLOYERS[0]} onBack={() => setScreen("dashboard")} exceptions={exceptions} />
+        )}
+        {screen === "exceptions" && (
+          <ExceptionReviewQueue exceptions={exceptions} setExceptions={setExceptions} />
         )}
         {screen === "filing" && <FilingControlCenter />}
         {screen === "confirmation" && <ConfirmationTracker />}
