@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alma H-1B Bulk Registration Automation — Draft PRD</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #dbe3ee;
+      --brand: #2952cc;
+      --brand2: #eff4ff;
+      --green: #0f9f6e;
+      --greenbg: #e9fbf4;
+      --amber: #b7791f;
+      --amberbg: #fff7e8;
+      --red: #c2410c;
+      --redbg: #fff1ec;
+      --purple: #6d28d9;
+      --purplebg: #f5f0ff;
+      --shadow: 0 10px 30px rgba(23, 43, 77, 0.08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    body { line-height: 1.45; }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 28px; }
+
+    .hero {
+      background: linear-gradient(135deg, #183b8c 0%, #2952cc 65%, #5c7cff 100%);
+      color: white;
+      border-radius: 22px;
+      padding: 28px 30px;
+      box-shadow: var(--shadow);
+      margin-bottom: 22px;
+    }
+    .hero h1 { margin: 0 0 10px; font-size: 34px; line-height: 1.1; }
+    .hero p { margin: 0; max-width: 900px; color: rgba(255,255,255,0.92); font-size: 16px; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .hero-chip {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+    .hero-chip strong { display: block; font-size: 14px; margin-bottom: 4px; }
+
+    .section { margin: 24px 0; }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .section-title h2 { margin: 0; font-size: 22px; }
+    .section-title .tag {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: var(--brand);
+      background: var(--brand2);
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid #d8e2ff;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+    .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 18px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .subtle { color: var(--muted); }
+    .small { font-size: 13px; color: var(--muted); }
+
+    .fact {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fcfdff;
+      margin-bottom: 10px;
+    }
+    .fact .icon { font-size: 20px; line-height: 1; }
+    .fact strong { display: block; margin-bottom: 3px; }
+
+    .flow {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      overflow-x: auto;
+    }
+    .flow-row {
+      display: flex;
+      align-items: stretch;
+      gap: 10px;
+      min-width: 1120px;
+      padding: 4px 0;
+    }
+    .flow-step {
+      min-width: 125px;
+      max-width: 150px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px;
+      position: relative;
+    }
+    .flow-step .n {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--brand2);
+      color: var(--brand);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .flow-step h4 { margin: 0 0 6px; font-size: 14px; line-height: 1.2; }
+    .flow-step p { margin: 0; font-size: 12px; color: var(--muted); }
+    .arrow {
+      display: flex; align-items: center; justify-content: center;
+      color: var(--brand); font-size: 24px; min-width: 20px; opacity: 0.75;
+    }
+    .flow-note {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 12px;
+    }
+    .note-pill {
+      background: #f9fbff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .note-pill strong { color: var(--ink); display:block; margin-bottom: 4px; }
+
+    .lane-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+    .lane {
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      background: white;
+      box-shadow: var(--shadow);
+    }
+    .lane.auto { background: var(--greenbg); border-color: #b5ecd7; }
+    .lane.assist { background: var(--amberbg); border-color: #f1d8a6; }
+    .lane.manual { background: var(--redbg); border-color: #f4c8b9; }
+    .lane h3 { margin-top: 0; }
+    .pill-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.75);
+      border: 1px solid rgba(0,0,0,0.06);
+      font-size: 12px;
+    }
+
+    .module-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      min-height: 150px;
+    }
+    .module-card .topline {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;
+    }
+    .module-card .num {
+      width: 28px; height: 28px; border-radius: 999px; display: inline-flex; align-items:center; justify-content:center;
+      background: var(--purplebg); color: var(--purple); font-weight: 700; font-size: 12px;
+    }
+    .module-card h3 { font-size: 16px; margin: 0; }
+    .module-card ul { margin: 10px 0 0 18px; padding: 0; color: var(--muted); font-size: 13px; }
+    .module-card li { margin-bottom: 4px; }
+
+    table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      background: white; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
+    }
+    th, td { padding: 12px 14px; font-size: 13px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { background: #f8fbff; font-size: 12px; letter-spacing: 0.02em; text-transform: uppercase; color: #50627a; }
+    tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    }
+    .b-green { background: var(--greenbg); color: var(--green); }
+    .b-amber { background: var(--amberbg); color: var(--amber); }
+    .b-red { background: var(--redbg); color: var(--red); }
+    .b-blue { background: var(--brand2); color: var(--brand); }
+
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+    .metric-box {
+      background: white; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 16px;
+    }
+    .metric-box h3 { margin-top: 0; }
+    .metric-box ul { margin: 8px 0 0 18px; padding: 0; color: var(--muted); font-size: 13px; }
+
+    .footer-note {
+      padding: 16px 18px; border-radius: 16px; background: #eef3ff; border: 1px solid #d5def7; color: #34425f; font-size: 13px;
+    }
+
+    @media (max-width: 1024px) {
+      .hero-grid, .grid-2, .grid-3, .grid-4, .lane-grid, .metrics, .flow-note { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>PRD: H-1B Bulk Registration Automation</h1>
+      <p>An execution-ready product plan for an attorney-supervised workflow that helps Alma prepare, validate, deduplicate, batch, review, route, and track employer-sponsored H-1B registrations — while preserving human control over legal judgment, client approval, payment, and final USCIS submission.</p>
+      <div class="hero-grid">
+        <div class="hero-chip"><strong>Primary User</strong>Alma legal ops + attorneys</div>
+        <div class="hero-chip"><strong>Customer</strong>Employer clients filing via legal representative flow</div>
+        <div class="hero-chip"><strong>Product Scope</strong>Pre-USCIS prep, guided filing, and post-filing tracking</div>
+        <div class="hero-chip"><strong>PRD Focus</strong>Reduce legal ops effort without replacing attorney control</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">EXECUTIVE SUMMARY</span>
+        <h2>Product thesis</h2>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>What Alma should build</h3>
+          <p>An <strong>attorney-supervised H-1B cap registration operating layer</strong> that sits before and after USCIS: it structures source data, generates the USCIS bulk template, catches errors, flags duplicates, organizes batches, prioritizes attorney review, tracks employer approval, and records final confirmations.</p>
+        </div>
+        <div class="card">
+          <h3>What Alma should not build in MVP</h3>
+          <p>No full autonomous filing bot. In MVP, USCIS login, G-28 completion/signature, employer approval, payment authorization, and final submit remain <strong>human-controlled</strong>. Alma assists those steps with checklists, prefill, and status tracking.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">CONTEXT</span>
+        <h2>Problem and opportunity</h2>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Operational pain</h3>
+          <div class="fact"><div class="icon">⏱️</div><div><strong>High-volume repetitive work</strong><span class="small">Data collection, template preparation, review, routing, and confirmation capture are repeated for every beneficiary and batch.</span></div></div>
+          <div class="fact"><div class="icon">⚠️</div><div><strong>Error-prone workflow</strong><span class="small">Missing fields, country formatting errors, wage/SOC issues, and duplicate risk create rework and filing risk.</span></div></div>
+        </div>
+        <div class="card">
+          <h3>USCIS constraints</h3>
+          <div class="fact"><div class="icon">📥</div><div><strong>Bulk upload is structured</strong><span class="small">Users must use the USCIS-provided file format. A single upload may contain up to 2,500 beneficiaries.</span></div></div>
+          <div class="fact"><div class="icon">📦</div><div><strong>Batches matter</strong><span class="small">USCIS splits the upload into draft batches of up to 250 registrations, which then need review and tracking.</span></div></div>
+        </div>
+        <div class="card">
+          <h3>Clear automation wedge</h3>
+          <div class="fact"><div class="icon">🧠</div><div><strong>Automate the repetitive layer</strong><span class="small">Best value comes from preparation, validation, deduplication, and workflow tracking — not replacing attorney judgment.</span></div></div>
+          <div class="fact"><div class="icon">✅</div><div><strong>Keep control with humans</strong><span class="small">Legal review, signatures, employer approval, payment, and final submission should stay human-owned.</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">USERS</span>
+        <h2>Primary users</h2>
+      </div>
+      <div class="grid-4">
+        <div class="card"><h3>Alma Legal Ops</h3><p>Owns data preparation, template generation, batch tracking, and coordination.</p></div>
+        <div class="card"><h3>Alma Attorney</h3><p>Owns legal review, exception handling, G-28 completion, and filing oversight.</p></div>
+        <div class="card"><h3>Employer HR / Admin</h3><p>Provides candidate, role, petitioner, and signatory data.</p></div>
+        <div class="card"><h3>Company Administrator</h3><p>Accepts or rejects draft G-28 and registration batches in the USCIS org account.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">WORKFLOW</span>
+        <h2>End-to-end workflow summary</h2>
+      </div>
+      <div class="flow">
+        <div class="flow-row">
+          <div class="flow-step"><div class="n">1</div><h4>Employer candidate intake</h4><p>Client shares H-1B candidate list and filing context.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">2</div><h4>Collect beneficiary + job data</h4><p>Biographic, passport, SOC, OEWS wage level, work location.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">3</div><h4>Validate & deduplicate</h4><p>Catch missing fields, bad formats, and duplicate risk.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">4</div><h4>Generate USCIS bulk file</h4><p>Create the USCIS-ready upload template.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">5</div><h4>Upload to USCIS</h4><p>Legal rep uploads file and resolves any system errors.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">6</div><h4>Track draft batches</h4><p>USCIS creates batches of up to 250 registrations.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">7</div><h4>Attorney review</h4><p>Review exceptions, petitioner details, and summary.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">8</div><h4>Client approval</h4><p>Company admin accepts or rejects G-28 + registration drafts.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">9</div><h4>Payment + submit</h4><p>Human completes Pay.gov + final submission.</p></div>
+          <div class="arrow">→</div>
+          <div class="flow-step"><div class="n">10</div><h4>Confirmation + audit</h4><p>Capture confirmation numbers, status, and final records.</p></div>
+        </div>
+        <div class="flow-note">
+          <div class="note-pill"><strong>Primary path</strong>Legal representative filing for employer clients using USCIS bulk upload.</div>
+          <div class="note-pill"><strong>Key USCIS insight</strong>The USCIS duplicate checker is limited, so Alma should catch duplicates before filing.</div>
+          <div class="note-pill"><strong>MVP boundary</strong>Alma helps users get to “ready to file” and “fully tracked after filing.”</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">PAIN POINTS</span>
+        <h2>Where the workflow breaks today</h2>
+      </div>
+      <div class="grid-4">
+        <div class="card">
+          <h3>1. Messy source data</h3>
+          <p>Employer lists, beneficiary details, passport data, job details, and petitioner information arrive from different sources and are often incomplete.</p>
+        </div>
+        <div class="card">
+          <h3>2. Repetitive data movement</h3>
+          <p>Legal ops repeatedly maps the same data into templates, USCIS drafts, trackers, approval notes, and confirmation records.</p>
+        </div>
+        <div class="card">
+          <h3>3. High-cost errors</h3>
+          <p>Invalid countries, missing wage levels, wrong petitioner details, and duplicate registrations can create rework or filing risk.</p>
+        </div>
+        <div class="card">
+          <h3>4. Poor batch visibility</h3>
+          <p>Once USCIS splits uploads into batches, teams need to track review, G-28, client approval, payment, submission, and confirmation across each batch.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">AUTOMATION STRATEGY</span>
+        <h2>Decision logic: automate, assist, or keep human-controlled</h2>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Automate when the task is rules-based</h3>
+          <p>Use automation for repetitive input, data mapping, validation, duplicate detection, batch reconciliation, reminders, confirmation capture, and audit logging.</p>
+        </div>
+        <div class="card">
+          <h3>Assist when judgment is needed</h3>
+          <p>Use AI/workflow support to summarize, prefill, and flag issues, but require human confirmation for petitioner, SOC/OEWS, G-28, and review decisions.</p>
+        </div>
+        <div class="card">
+          <h3>Keep manual when authority matters</h3>
+          <p>Keep USCIS login, client approval, legal certification, payment authorization, and final submit human-controlled because they carry legal or financial responsibility.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">DECISION MATRIX</span>
+        <h2>Step-level automation strategy</h2>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Workflow step</th>
+            <th>Primary user</th>
+            <th>Pain point</th>
+            <th>Decision</th>
+            <th>Why this choice</th>
+            <th>Success metric</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Employer candidate list intake</td><td>Employer HR + Alma legal ops</td><td>Candidate lists arrive through email/spreadsheets and are hard to reconcile.</td><td><span class="badge b-amber">Assist</span></td><td>Employer still decides whom to sponsor, but Alma can structure the intake and track readiness.</td><td>% candidates mapped to employer workspace</td></tr>
+          <tr><td>2</td><td>Beneficiary biographic/passport collection</td><td>Beneficiary + Employer HR</td><td>Missing names, passport details, DOBs, and country fields create downstream upload errors.</td><td><span class="badge b-green">Automate</span></td><td>Required-field validation and structured intake are rules-based and high-volume.</td><td>Missing-field rate before validation</td></tr>
+          <tr><td>3</td><td>Job, SOC, OEWS wage level, and work location capture</td><td>Employer HR + Alma attorney</td><td>These fields are required but may need legal/contextual review.</td><td><span class="badge b-amber">Assist</span></td><td>Alma can collect, check format, and flag missing values, while attorney confirms sensitive classifications.</td><td>% records with complete SOC/OEWS/location fields</td></tr>
+          <tr><td>4</td><td>Petitioner entity and signatory setup</td><td>Employer admin + Alma legal ops</td><td>Wrong entity, EIN, or signatory can create filing risk, especially for subsidiaries.</td><td><span class="badge b-amber">Assist</span></td><td>Reusable profiles save time, but final entity correctness needs human confirmation.</td><td># entity/signatory exceptions before upload</td></tr>
+          <tr><td>5</td><td>USCIS bulk template preparation</td><td>Alma legal ops</td><td>Manual spreadsheet population is repetitive and formatting-sensitive.</td><td><span class="badge b-green">Automate</span></td><td>Data mapping into a required format is the clearest rules-based automation opportunity.</td><td>Template generation time; upload error rate</td></tr>
+          <tr><td>6</td><td>Pre-upload validation</td><td>Alma legal ops</td><td>USCIS errors cause rework after upload.</td><td><span class="badge b-green">Automate</span></td><td>Alma should catch invalid countries, missing fields, wage-level issues, and formatting errors before USCIS.</td><td>% USCIS uploads accepted first time</td></tr>
+          <tr><td>7</td><td>Duplicate risk detection</td><td>Alma legal ops + attorney</td><td>USCIS duplicate checker is limited and does not cover every duplicate scenario.</td><td><span class="badge b-green">Automate + review</span></td><td>System can flag likely duplicates; attorney resolves edge cases and override decisions.</td><td># duplicate risks caught before submission</td></tr>
+          <tr><td>8</td><td>USCIS login and company/client selection</td><td>Alma legal representative</td><td>Wrong client selection is risky; login/2FA is security-sensitive.</td><td><span class="badge b-red">Human-controlled</span></td><td>Keep login manual; Alma should show the expected filing context as a checklist.</td><td>Zero wrong-client filing incidents</td></tr>
+          <tr><td>9</td><td>Bulk file upload to USCIS</td><td>Alma legal ops</td><td>Upload itself is simple, but failure handling can cause delays.</td><td><span class="badge b-amber">Assist</span></td><td>Alma prepares the file and tracks versioning; human performs the actual portal upload.</td><td>Upload success rate; error resolution time</td></tr>
+          <tr><td>10</td><td>USCIS draft batch creation</td><td>USCIS system + Alma legal ops</td><td>Uploads are split into batches, creating reconciliation work.</td><td><span class="badge b-green">Automate monitor</span></td><td>Alma should compare expected vs. actual batches and beneficiary counts.</td><td>Batch reconciliation accuracy</td></tr>
+          <tr><td>11</td><td>Open batch and enter petitioner/signatory details</td><td>Alma legal ops</td><td>Same information may need to be entered across batches.</td><td><span class="badge b-amber">Assist / prefill</span></td><td>Prefill reduces repetitive work, but human confirms the entity and signatory in USCIS.</td><td>Time per batch setup</td></tr>
+          <tr><td>12</td><td>Beneficiary review and edits</td><td>Alma legal ops + attorney</td><td>Reviewing up to 250 beneficiaries per batch is cognitively heavy.</td><td><span class="badge b-amber">Assist</span></td><td>Alma should separate clean records from exceptions and show only what needs attention.</td><td>Attorney review time per batch</td></tr>
+          <tr><td>13</td><td>H-1B registration summary review</td><td>Alma attorney</td><td>This is the last chance to catch errors before certification.</td><td><span class="badge b-amber">Assist</span></td><td>Alma can generate a risk summary and unresolved-issues checklist; attorney gives final review.</td><td># unresolved flags at summary stage</td></tr>
+          <tr><td>14</td><td>G-28 preparation</td><td>Alma attorney</td><td>Attorney/client representation data is repetitive but legally sensitive.</td><td><span class="badge b-amber">Assist / prefill</span></td><td>Prefill reusable fields while keeping attorney control over certification.</td><td>G-28 completion time; correction rate</td></tr>
+          <tr><td>15</td><td>Company admin approval</td><td>Employer company administrator</td><td>Approval delays or rejections can block filing close to deadline.</td><td><span class="badge b-amber">Monitor / assist</span></td><td>Client decision stays manual, but Alma tracks status, sends reminders, and captures rejection reasons.</td><td>Time from notification to approval</td></tr>
+          <tr><td>16</td><td>Payment through Pay.gov</td><td>Alma legal representative / authorized payer</td><td>Payment needs authorization; failed payment can block submission.</td><td><span class="badge b-amber">Assist</span></td><td>Alma should calculate expected fees and reconcile paid batches, but not authorize payment.</td><td>Payment success rate; payment mismatches</td></tr>
+          <tr><td>17</td><td>Final submission</td><td>Alma legal representative</td><td>High-stakes legal filing action.</td><td><span class="badge b-red">Human-controlled</span></td><td>System provides readiness checklist; human performs the final submission in USCIS.</td><td>Submitted count vs. intended count</td></tr>
+          <tr><td>18</td><td>Confirmation number and status capture</td><td>Alma legal ops</td><td>Manual copying of confirmation numbers is repetitive and error-prone.</td><td><span class="badge b-green">Automate</span></td><td>Alma should capture or reconcile confirmation number, status, batch ID, and timestamp.</td><td>% submissions with confirmation captured</td></tr>
+          <tr><td>19</td><td>Final record and audit packet</td><td>Alma legal ops + attorney</td><td>Evidence is scattered across USCIS, Pay.gov, CSVs, spreadsheets, and emails.</td><td><span class="badge b-green">Automate</span></td><td>System can assemble beneficiary and batch-level audit records automatically.</td><td>Audit packet completeness rate</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">CONSOLIDATED STRATEGY</span>
+        <h2>What Alma automates, assists, and keeps human-controlled</h2>
+      </div>
+      <div class="lane-grid">
+        <div class="lane auto">
+          <h3>Automate</h3>
+          <p class="small">Chosen because these are repetitive, rules-based, high-volume, and measurable.</p>
+          <div class="pill-list">
+            <span class="pill">Beneficiary intake validation</span>
+            <span class="pill">Pre-upload validation</span>
+            <span class="pill">USCIS template generation</span>
+            <span class="pill">Duplicate detection</span>
+            <span class="pill">Batch reconciliation</span>
+            <span class="pill">Confirmation capture</span>
+            <span class="pill">Audit packet creation</span>
+          </div>
+        </div>
+        <div class="lane assist">
+          <h3>Assist</h3>
+          <p class="small">Chosen because these steps benefit from prefill, summaries, and workflow routing, but still need human confirmation.</p>
+          <div class="pill-list">
+            <span class="pill">Candidate intake tracking</span>
+            <span class="pill">SOC / OEWS review</span>
+            <span class="pill">Petitioner/signatory prefill</span>
+            <span class="pill">USCIS upload guidance</span>
+            <span class="pill">Attorney exception review</span>
+            <span class="pill">G-28 prefill</span>
+            <span class="pill">Client approval tracking</span>
+            <span class="pill">Payment reconciliation</span>
+          </div>
+        </div>
+        <div class="lane manual">
+          <h3>Keep human-controlled</h3>
+          <p class="small">Chosen because these steps involve legal responsibility, client authorization, financial approval, or security.</p>
+          <div class="pill-list">
+            <span class="pill">USCIS login / 2FA</span>
+            <span class="pill">Company/client selection confirmation</span>
+            <span class="pill">Legal eligibility judgment</span>
+            <span class="pill">Signature/certification</span>
+            <span class="pill">Company admin acceptance</span>
+            <span class="pill">Payment authorization</span>
+            <span class="pill">Final submit click</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">MVP ARCHITECTURE</span>
+        <h2>What we are building across the workflow</h2>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <h3>Product build strategy</h3>
+        <p>The MVP is organized around three workflow layers: <strong>Pre-USCIS</strong> data preparation, <strong>During USCIS</strong> filing control, and <strong>Post-filing</strong> confirmation and audit. The product automates repetitive data and tracking work, assists judgment-heavy filing steps, and keeps legal certification, client approval, payment, and final submission human-controlled.</p>
+      </div>
+
+      <div class="flow" style="margin-bottom:18px;">
+        <div class="flow-row" style="min-width:900px;">
+          <div class="flow-step" style="min-width:260px; max-width:300px; border-color:#b5ecd7; background:#e9fbf4;">
+            <div class="n">1</div>
+            <h4>Pre-USCIS: Registration Data Hub</h4>
+            <p>Clean employer, beneficiary, job, and petitioner data before upload.</p>
+          </div>
+          <div class="arrow">→</div>
+          <div class="flow-step" style="min-width:260px; max-width:300px; border-color:#f1d8a6; background:#fff7e8;">
+            <div class="n">2</div>
+            <h4>During USCIS: Filing Control Center</h4>
+            <p>Guide batch review, client approval, and submission readiness.</p>
+          </div>
+          <div class="arrow">→</div>
+          <div class="flow-step" style="min-width:260px; max-width:300px; border-color:#d8e2ff; background:#eff4ff;">
+            <div class="n">3</div>
+            <h4>Post-filing: Confirmation & Audit Tracker</h4>
+            <p>Reconcile confirmation numbers, statuses, and final filing records.</p>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Feature to build</th>
+            <th>In MVP</th>
+            <th>Automation strategy</th>
+            <th>Success metric</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge b-green">Pre-USCIS</span></td>
+            <td><strong>Employer workspace</strong></td>
+            <td>Reusable employer profile, petitioner entity, EIN, signatory, owner, and season status.</td>
+            <td>Prefill repeated employer data; require human confirmation for entity-sensitive fields.</td>
+            <td>% employer profiles complete before filing window.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-green">Pre-USCIS</span></td>
+            <td><strong>Beneficiary + job data manager</strong></td>
+            <td>Structured beneficiary table for passport, biographic, SOC, OEWS wage level, and work-location fields.</td>
+            <td>Convert messy employer inputs into standardized records with clear missing-field flags.</td>
+            <td>% beneficiaries complete without legal ops follow-up.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-green">Pre-USCIS</span></td>
+            <td><strong>Validation engine</strong></td>
+            <td>Row-level checks for required fields, country names, date formats, wage level, SOC, and petitioner completeness.</td>
+            <td>Catch deterministic errors before the USCIS upload step.</td>
+            <td>USCIS upload error rate.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-green">Pre-USCIS</span></td>
+            <td><strong>Duplicate-risk engine</strong></td>
+            <td>Exact and fuzzy duplicate flags across the upload, batches, employer records, and Alma season records.</td>
+            <td>Automate detection; route ambiguous duplicate risks to attorney review.</td>
+            <td># duplicate risks caught before USCIS upload.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-green">Pre-USCIS</span></td>
+            <td><strong>USCIS bulk template generator</strong></td>
+            <td>Generate USCIS-ready Excel template from validated data with file version history.</td>
+            <td>Automate formatting, field mapping, and version tracking.</td>
+            <td>Time from complete data to upload-ready template.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-amber">During USCIS</span></td>
+            <td><strong>Batch tracker</strong></td>
+            <td>Track USCIS batch IDs, beneficiary count, owner, review status, approval status, and next action.</td>
+            <td>Reconcile USCIS-created batches against Alma source data.</td>
+            <td>Batch reconciliation accuracy.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-amber">During USCIS</span></td>
+            <td><strong>Attorney exception review queue</strong></td>
+            <td>Flagged-case queue for duplicates, petitioner mismatches, missing fields, and SOC/OEWS/location warnings.</td>
+            <td>Shift attorney time from line-by-line review to exception-based review.</td>
+            <td>Attorney review time per batch.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-amber">During USCIS</span></td>
+            <td><strong>G-28 + company admin approval tracker</strong></td>
+            <td>Approval status board for pending, accepted, rejected, and ready-for-payment batches.</td>
+            <td>Automate routing and reminders while keeping client acceptance manual.</td>
+            <td>Time from G-28 ready to client acceptance.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-amber">During USCIS</span></td>
+            <td><strong>Payment/submission readiness checklist</strong></td>
+            <td>Checklist for review complete, client accepted, fee calculated, and final submitter assigned.</td>
+            <td>Assist high-stakes human steps with readiness signals, not autonomous submission.</td>
+            <td>% batches submitted with all readiness checks complete.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-blue">Post-filing</span></td>
+            <td><strong>Confirmation capture</strong></td>
+            <td>Structured capture of confirmation number, status, submitted timestamp, and batch ID.</td>
+            <td>Guide repetitive capture and reconcile every submitted registration.</td>
+            <td>% submitted registrations with confirmation captured.</td>
+          </tr>
+          <tr>
+            <td><span class="badge b-blue">Post-filing</span></td>
+            <td><strong>Audit record</strong></td>
+            <td>Batch-level record tying source data, template version, review status, approval, and confirmation.</td>
+            <td>Create a filing record automatically as the workflow progresses.</td>
+            <td>% batches with complete audit record.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">SCOPE</span>
+        <h2>What is in scope for MVP</h2>
+      </div>
+      <table>
+        <thead>
+          <tr><th>In scope</th><th>Why it matters</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Structured employer and beneficiary intake</td><td>Creates one clean source of truth before USCIS work begins.</td></tr>
+          <tr><td>Pre-upload validation</td><td>Reduces avoidable USCIS upload errors and rework.</td></tr>
+          <tr><td>Duplicate-risk detection</td><td>Flags issues earlier than the USCIS duplicate checker can.</td></tr>
+          <tr><td>USCIS bulk template generation</td><td>Removes repetitive formatting and field-mapping work.</td></tr>
+          <tr><td>Batch tracking and attorney exception review</td><td>Helps legal ops manage batches while attorneys focus on risky cases.</td></tr>
+          <tr><td>Client approval and submission readiness tracking</td><td>Prevents batches from getting stuck before payment and submission.</td></tr>
+          <tr><td>Confirmation capture and audit record</td><td>Ensures every filed registration is reconciled and defensible.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span class="tag">PROTOTYPE</span>
+        <h2>Prototype</h2>
+      </div>
+      <div class="grid-4">
+        <div class="card"><h3>1. Employer Dashboard</h3><p>Client-level view of candidate counts, data completeness, duplicate risk, and overall cap-season progress.</p></div>
+        <div class="card"><h3>2. Data Hub</h3><p>Beneficiary table with validation flags, duplicate warnings, and USCIS template generation status.</p></div>
+        <div class="card"><h3>3. Filing Control Center</h3><p>Batch tracker, attorney exception queue, G-28/client approval status, and submission readiness checklist.</p></div>
+        <div class="card"><h3>4. Confirmation Tracker</h3><p>Post-submission confirmation numbers, USCIS statuses, timestamps, and audit packet export.</p></div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
