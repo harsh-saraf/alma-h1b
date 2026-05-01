@@ -1,915 +1,1214 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 
-const EMPLOYERS = [
-  { id: 1, name: "Meridian Health Systems", ein: "84-2931847", candidates: 42, complete: 38, duplicates: 3, petitionerReady: true, status: "ready" },
-  { id: 2, name: "Apex Robotics Inc.", ein: "91-4820173", candidates: 28, complete: 22, duplicates: 1, petitionerReady: true, status: "in_progress" },
-  { id: 3, name: "NovaBridge Analytics", ein: "73-6192840", candidates: 15, complete: 15, duplicates: 0, petitionerReady: true, status: "ready" },
-  { id: 4, name: "Lumen Therapeutics", ein: "62-8301956", candidates: 67, complete: 41, duplicates: 5, petitionerReady: false, status: "blocked" },
-  { id: 5, name: "Crestline Manufacturing", ein: "55-7104832", candidates: 19, complete: 19, duplicates: 0, petitionerReady: true, status: "ready" },
-  { id: 6, name: "Vantage Cloud Solutions", ein: "38-9201764", candidates: 31, complete: 27, duplicates: 2, petitionerReady: true, status: "in_progress" },
+const clients = [
+  {
+    id: "acme",
+    name: "Acme Robotics",
+    petitionerEntity: "Acme Robotics Inc.",
+    ein: "91-4820173",
+    authorizedSignatory: "Maya Chen, VP People",
+    attorneyOwner: "Nora Patel",
+    legalOpsOwner: "Evan Brooks",
+  },
+  {
+    id: "meridian",
+    name: "Meridian Health Systems",
+    petitionerEntity: "Meridian Health Corp.",
+    ein: "84-2931847",
+    authorizedSignatory: "Daniel Reiss, CHRO",
+    attorneyOwner: "Leah Morgan",
+    legalOpsOwner: "Camila Ortiz",
+  },
+  {
+    id: "novabridge",
+    name: "NovaBridge Analytics",
+    petitionerEntity: "NovaBridge Analytics LLC",
+    ein: "73-6192840",
+    authorizedSignatory: "Owen Walsh, CFO",
+    attorneyOwner: "Nora Patel",
+    legalOpsOwner: "Evan Brooks",
+  },
 ];
 
-const BENEFICIARIES = [
-  { id: 1, empId: 1, name: "Priya Venkatesh", passport: "T8294710", dob: "03/15/1994", cob: "India", coc: "India", gender: "F", soc: "15-1252", wage: "III", city: "Boston", state: "MA", zip: "02101", validation: "pass", duplicate: null, template: "ready" },
-  { id: 2, empId: 1, name: "Wei Zhang", passport: "E73918204", dob: "11/02/1991", cob: "China", coc: "China", gender: "M", soc: "15-1256", wage: "II", city: "Cambridge", state: "MA", zip: "02139", validation: "pass", duplicate: null, template: "ready" },
-  { id: 3, empId: 1, name: "Anika Sharma", passport: "R5820194", dob: "07/28/1996", cob: "India", coc: "India", gender: "F", soc: "29-1228", wage: "", city: "Boston", state: "MA", zip: "02101", validation: "warning", validationDetails: "V6: OEWS wage level missing", duplicate: null, template: "blocked" },
-  { id: 4, empId: 1, name: "Carlos Mendez", passport: "MX4829103", dob: "01/09/1989", cob: "Mexico", coc: "Mexico", gender: "M", soc: "17-2141", wage: "III", city: "Worcester", state: "MA", zip: "01601", validation: "pass", duplicate: null, template: "ready" },
-  { id: 5, empId: 1, name: "Tomoko Hayashi", passport: "TZ8291047", dob: "05/14/1993", cob: "Japan", coc: "Japan", gender: "F", soc: "15-1252", wage: "II", city: "Boston", state: "MA", zip: "02101", validation: "block", validationDetails: "V2: Country 'Japan' — verify matches USCIS list entry", duplicate: null, template: "blocked" },
-  { id: 6, empId: 1, name: "Ravi Krishnan", passport: "T8294711", dob: "09/30/1990", cob: "India", coc: "India", gender: "M", soc: "15-1211", wage: "III", city: "Boston", state: "MA", zip: "02101", validation: "warning", validationDetails: "V10: Duplicate risk — strong fuzzy match", duplicate: "strong_fuzzy", duplicateMatch: "Ravi Krishnan (Apex Robotics, passport R6291048)", template: "blocked" },
-  { id: 7, empId: 1, name: "Elena Popova", passport: "RU2918374", dob: "12/05/1995", cob: "Russia", coc: "Russia", gender: "F", soc: "11-9041", wage: "II", city: "Cambridge", state: "MA", zip: "02139", validation: "pass", duplicate: null, template: "ready" },
-  { id: 8, empId: 1, name: "Sanjay Gupta", passport: "", dob: "04/22/1992", cob: "India", coc: "India", gender: "M", soc: "15-1299", wage: "II", city: "Boston", state: "MA", zip: "02101", validation: "block", validationDetails: "V1: Passport number missing", duplicate: null, template: "blocked" },
-  { id: 9, empId: 1, name: "Min-Jun Park", passport: "K4829103", dob: "08/17/1988", cob: "South Korea", coc: "South Korea", gender: "M", soc: "15-1252", wage: "III", city: "Boston", state: "MA", zip: "02101", validation: "block", validationDetails: "V2: 'South Korea' — use USCIS name 'Korea, South'", duplicate: null, template: "blocked" },
-  { id: 10, empId: 1, name: "Fatima Al-Hassan", passport: "JO1928374", dob: "06/11/1997", cob: "Jordan", coc: "Jordan", gender: "F", soc: "29-1141", wage: "II", city: "Worcester", state: "MA", zip: "01601", validation: "pass", duplicate: null, template: "ready" },
+const initialBeneficiaries = [
+  {
+    id: "ben-001",
+    name: "Priya Venkatesh",
+    clientId: "acme",
+    batchId: "B-001",
+    passportStatus: "Complete",
+    biographicStatus: "Complete",
+    socOewsStatus: "Complete",
+    areaStatus: "Complete",
+    dataStatus: "Complete",
+    duplicateRisk: "None",
+    exceptionStatus: "None",
+    attorneyReviewStatus: "Not Required",
+    filingStatus: "Submitted",
+    confirmationStatus: "Captured",
+    confirmationNumber: "IOE-ACM-0001",
+    uscisStatus: "Submitted",
+    submittedAt: "2026-03-18 09:42 CT",
+    auditStatus: "Complete",
+  },
+  {
+    id: "ben-002",
+    name: "Wei Zhang",
+    clientId: "acme",
+    batchId: "B-001",
+    passportStatus: "Complete",
+    biographicStatus: "Complete",
+    socOewsStatus: "Complete",
+    areaStatus: "Complete",
+    dataStatus: "Complete",
+    duplicateRisk: "Low",
+    exceptionStatus: "None",
+    attorneyReviewStatus: "Approved",
+    filingStatus: "Submitted",
+    confirmationStatus: "Missing",
+    confirmationNumber: "",
+    uscisStatus: "Confirmation missing",
+    submittedAt: "2026-03-18 09:44 CT",
+    auditStatus: "Incomplete",
+  },
+  {
+    id: "ben-003",
+    name: "Ravi Krishnan",
+    clientId: "acme",
+    batchId: "B-002",
+    passportStatus: "Complete",
+    biographicStatus: "Complete",
+    socOewsStatus: "Complete",
+    areaStatus: "Complete",
+    dataStatus: "Complete",
+    duplicateRisk: "High",
+    exceptionStatus: "In Review",
+    attorneyReviewStatus: "Required",
+    filingStatus: "Draft",
+    confirmationStatus: "Not Applicable",
+    confirmationNumber: "",
+    uscisStatus: "Not submitted",
+    submittedAt: "",
+    auditStatus: "Not Started",
+  },
+  {
+    id: "ben-004",
+    name: "Anika Sharma",
+    clientId: "acme",
+    batchId: "B-002",
+    passportStatus: "Complete",
+    biographicStatus: "Complete",
+    socOewsStatus: "Missing Info",
+    areaStatus: "Complete",
+    dataStatus: "Missing Info",
+    duplicateRisk: "None",
+    exceptionStatus: "Open",
+    attorneyReviewStatus: "Not Required",
+    filingStatus: "Draft",
+    confirmationStatus: "Not Applicable",
+    confirmationNumber: "",
+    uscisStatus: "Not submitted",
+    submittedAt: "",
+    auditStatus: "Not Started",
+  },
+  {
+    id: "ben-005",
+    name: "Sanjay Gupta",
+    clientId: "acme",
+    batchId: "B-002",
+    passportStatus: "Missing Info",
+    biographicStatus: "Complete",
+    socOewsStatus: "Complete",
+    areaStatus: "Complete",
+    dataStatus: "Missing Info",
+    duplicateRisk: "None",
+    exceptionStatus: "Open",
+    attorneyReviewStatus: "Not Required",
+    filingStatus: "Draft",
+    confirmationStatus: "Not Applicable",
+    confirmationNumber: "",
+    uscisStatus: "Not submitted",
+    submittedAt: "",
+    auditStatus: "Not Started",
+  },
+  {
+    id: "ben-006",
+    name: "Min-Jun Park",
+    clientId: "acme",
+    batchId: "B-002",
+    passportStatus: "Complete",
+    biographicStatus: "Invalid",
+    socOewsStatus: "Complete",
+    areaStatus: "Complete",
+    dataStatus: "Invalid",
+    duplicateRisk: "None",
+    exceptionStatus: "Open",
+    attorneyReviewStatus: "Not Required",
+    filingStatus: "Draft",
+    confirmationStatus: "Not Applicable",
+    confirmationNumber: "",
+    uscisStatus: "Not submitted",
+    submittedAt: "",
+    auditStatus: "Not Started",
+  },
+  {
+    id: "ben-007",
+    name: "Elena Popova",
+    clientId: "meridian",
+    batchId: "B-003",
+    passportStatus: "Complete",
+    biographicStatus: "Complete",
+    socOewsStatus: "Complete",
+    areaStatus: "Complete",
+    dataStatus: "Complete",
+    duplicateRisk: "Medium",
+    exceptionStatus: "Resolved",
+    attorneyReviewStatus: "Approved",
+    filingStatus: "Submitted",
+    confirmationStatus: "Captured",
+    confirmationNumber: "IOE-MER-0007",
+    uscisStatus: "Submitted",
+    submittedAt: "2026-03-17 14:15 CT",
+    auditStatus: "Complete",
+  },
+  {
+    id: "ben-008",
+    name: "Tomoko Hayashi",
+    clientId: "novabridge",
+    batchId: "B-004",
+    passportStatus: "Complete",
+    biographicStatus: "Complete",
+    socOewsStatus: "Complete",
+    areaStatus: "Complete",
+    dataStatus: "Complete",
+    duplicateRisk: "None",
+    exceptionStatus: "None",
+    attorneyReviewStatus: "Approved",
+    filingStatus: "Submitted",
+    confirmationStatus: "Captured",
+    confirmationNumber: "IOE-NOV-0008",
+    uscisStatus: "Submitted",
+    submittedAt: "2026-03-16 10:22 CT",
+    auditStatus: "Complete",
+  },
 ];
 
-const BATCHES = [
-  { id: "B-2027-001", empName: "NovaBridge Analytics", petitioner: "NovaBridge Analytics LLC", count: 15, review: "complete", exceptions: 0, g28: "accepted", payment: "paid", submission: "submitted", confirmation: "CNF-92817364" },
-  { id: "B-2027-002", empName: "Meridian Health Systems", petitioner: "Meridian Health Corp.", count: 22, review: "in_review", exceptions: 3, g28: "pending", payment: "unpaid", submission: "not_ready", confirmation: null },
-  { id: "B-2027-003", empName: "Meridian Health Systems", petitioner: "Meridian Specialty Group Inc.", count: 16, review: "complete", exceptions: 0, g28: "sent", payment: "unpaid", submission: "not_ready", confirmation: null },
-  { id: "B-2027-004", empName: "Apex Robotics Inc.", petitioner: "Apex Robotics Inc.", count: 22, review: "not_started", exceptions: 0, g28: "not_sent", payment: "unpaid", submission: "not_ready", confirmation: null },
-  { id: "B-2027-005", empName: "Crestline Manufacturing", petitioner: "Crestline Manufacturing Co.", count: 19, review: "complete", exceptions: 0, g28: "accepted", payment: "paid", submission: "submitted", confirmation: "CNF-10293847" },
-  { id: "B-2027-006", empName: "Vantage Cloud Solutions", petitioner: "Vantage Cloud Inc.", count: 18, review: "complete", exceptions: 1, g28: "accepted", payment: "paid", submission: "submitted", confirmation: "CNF-56473829" },
+const initialDuplicateRisks = [
+  {
+    id: "dup-001",
+    beneficiaryId: "ben-003",
+    matchType: "Same name + DOB",
+    matchedRecord: "Ravi Krishnan - Horizon AI, passport R6291048",
+    confidence: "High",
+    riskReason: "High-confidence fuzzy match across employers with matching DOB.",
+    status: "Unresolved",
+    recommendedAction: "Attorney should compare passport records and exclude a duplicate if confirmed.",
+  },
+  {
+    id: "dup-002",
+    beneficiaryId: "ben-002",
+    matchType: "Similar passport",
+    matchedRecord: "Wei Zhang - prior FY2026 candidate archive",
+    confidence: "Low",
+    riskReason: "Same family name and nearby passport series; DOB does not match.",
+    status: "Needs Review",
+    recommendedAction: "Document as cleared if identity does not match.",
+  },
+  {
+    id: "dup-003",
+    beneficiaryId: "ben-007",
+    matchType: "Same passport",
+    matchedRecord: "Elena Popova - Meridian draft import duplicate",
+    confidence: "Medium",
+    riskReason: "Duplicate created by import retry.",
+    status: "Resolved",
+    recommendedAction: "Resolved by retaining the newest record.",
+  },
 ];
 
-const CONFIRMATIONS = [
-  { batchId: "B-2027-001", empName: "NovaBridge Analytics", confirmation: "CNF-92817364", status: "Selected", submittedAt: "2026-03-15 09:42 EST", expected: 15, confirmed: 15, auditComplete: true },
-  { batchId: "B-2027-005", empName: "Crestline Manufacturing", confirmation: "CNF-10293847", status: "Selected", submittedAt: "2026-03-15 11:18 EST", expected: 19, confirmed: 19, auditComplete: true },
-  { batchId: "B-2027-006", empName: "Vantage Cloud Solutions", confirmation: "CNF-56473829", status: "Not Selected", submittedAt: "2026-03-15 14:05 EST", expected: 18, confirmed: 18, auditComplete: false },
+const initialBatches = [
+  {
+    id: "B-001",
+    clientId: "acme",
+    beneficiaryCount: 2,
+    status: "Submitted",
+    attorneyReviewStatus: "Approved",
+    g28Status: "Complete",
+    companyAdminApprovalStatus: "Accepted",
+    paymentStatus: "Complete",
+    submissionStatus: "Submitted",
+    confirmationCaptureStatus: "Missing",
+    nextAction: "Capture missing confirmation numbers.",
+    sentToAdminAt: "2026-03-17 15:30 CT",
+    adminContact: "Maya Chen",
+    feeTotal: "$430",
+  },
+  {
+    id: "B-002",
+    clientId: "acme",
+    beneficiaryCount: 4,
+    status: "Needs attorney review",
+    attorneyReviewStatus: "Required",
+    g28Status: "Draft",
+    companyAdminApprovalStatus: "Not Sent",
+    paymentStatus: "Not Ready",
+    submissionStatus: "Not Started",
+    confirmationCaptureStatus: "Not Applicable",
+    nextAction: "Resolve open exceptions before USCIS upload.",
+    sentToAdminAt: "",
+    adminContact: "Maya Chen",
+    feeTotal: "$860",
+  },
+  {
+    id: "B-003",
+    clientId: "meridian",
+    beneficiaryCount: 1,
+    status: "Ready for payment",
+    attorneyReviewStatus: "Approved",
+    g28Status: "Complete",
+    companyAdminApprovalStatus: "Accepted",
+    paymentStatus: "Pending",
+    submissionStatus: "Not Started",
+    confirmationCaptureStatus: "Not Applicable",
+    nextAction: "Complete Pay.gov payment.",
+    sentToAdminAt: "2026-03-18 08:10 CT",
+    adminContact: "Daniel Reiss",
+    feeTotal: "$215",
+  },
+  {
+    id: "B-004",
+    clientId: "novabridge",
+    beneficiaryCount: 1,
+    status: "Complete",
+    attorneyReviewStatus: "Approved",
+    g28Status: "Complete",
+    companyAdminApprovalStatus: "Accepted",
+    paymentStatus: "Complete",
+    submissionStatus: "Submitted",
+    confirmationCaptureStatus: "Complete",
+    nextAction: "No action needed.",
+    sentToAdminAt: "2026-03-15 12:05 CT",
+    adminContact: "Owen Walsh",
+    feeTotal: "$215",
+  },
 ];
 
-const EXCEPTIONS_INIT = [
-  { id: "EX-001", beneficiaryId: 8, empId: 1, batchId: "B-2027-002", issueType: "Missing passport number", severity: "high", owner: "Employer HR", status: "open", recommendedAction: "Contact Meridian HR to obtain passport number from Sanjay Gupta before template generation.", notes: "" },
-  { id: "EX-002", beneficiaryId: 9, empId: 1, batchId: "B-2027-002", issueType: "Invalid country value", severity: "high", owner: "Legal Ops", status: "open", recommendedAction: "Update COB/COC from 'South Korea' to 'Korea, South' to match the USCIS accepted country list.", notes: "" },
-  { id: "EX-003", beneficiaryId: 6, empId: 1, batchId: "B-2027-002", issueType: "Possible duplicate passport", severity: "high", owner: "Attorney", status: "in_review", recommendedAction: "Compare passport numbers and DOBs across employers. Remove duplicate or document as distinct individuals.", notes: "Cross-employer fuzzy match flagged against Apex Robotics record (passport R6291048). Attorney reviewing." },
-  { id: "EX-004", beneficiaryId: 5, empId: 1, batchId: "B-2027-002", issueType: "Invalid country value", severity: "medium", owner: "Legal Ops", status: "open", recommendedAction: "Verify 'Japan' matches the correct USCIS-accepted country list entry for this beneficiary.", notes: "" },
-  { id: "EX-005", beneficiaryId: 3, empId: 1, batchId: "B-2027-002", issueType: "Missing OEWS wage level", severity: "medium", owner: "Employer HR", status: "waiting_on_client", recommendedAction: "Request OEWS wage level (I–IV) from Meridian HR for SOC code 29-1228.", notes: "Reminder email sent to Meridian HR on 2026-04-28. Follow up by 2026-05-03 if no response." },
-  { id: "EX-006", beneficiaryId: null, empId: 4, batchId: null, issueType: "Petitioner entity mismatch", severity: "high", owner: "Attorney", status: "open", recommendedAction: "Verify correct legal entity name and EIN for Lumen Therapeutics before generating template. Confirm subsidiary vs. parent entity.", notes: "" },
-  { id: "EX-007", beneficiaryId: null, empId: 2, batchId: "B-2027-004", issueType: "Company admin rejected batch", severity: "high", owner: "Legal Ops", status: "open", recommendedAction: "Contact Apex Robotics company admin to determine rejection reason. Correct and resubmit G-28.", notes: "" },
-  { id: "EX-008", beneficiaryId: null, empId: 6, batchId: "B-2027-006", issueType: "Same name + DOB match", severity: "medium", owner: "Attorney", status: "in_review", recommendedAction: "Cross-check Vantage Cloud beneficiary records against NovaBridge submission for same-name DOB overlap.", notes: "Two records share 'Chen Wei' with DOB 11/02/1991 across different employers." },
-  { id: "EX-009", beneficiaryId: null, empId: 4, batchId: null, issueType: "Missing SOC code", severity: "medium", owner: "Employer HR", status: "waiting_on_client", recommendedAction: "Request job classification SOC codes from Lumen Therapeutics HR for 26 pending beneficiaries.", notes: "Initial request sent 2026-04-25. Follow-up sent 2026-04-30." },
-  { id: "EX-010", beneficiaryId: null, empId: 3, batchId: "B-2027-001", issueType: "Confirmation number missing", severity: "low", owner: "Legal Ops", status: "resolved", recommendedAction: "Log into USCIS portal and retrieve the confirmation number for batch B-2027-001.", notes: "Resolved 2026-03-15. Confirmation CNF-92817364 captured and verified." },
+const initialExceptions = [
+  {
+    id: "EX-001",
+    beneficiaryId: "ben-003",
+    clientId: "acme",
+    batchId: "B-002",
+    issueType: "Possible duplicate passport",
+    severity: "High",
+    owner: "Attorney",
+    status: "In Review",
+    sourceField: "Name, DOB, passport fuzzy match",
+    recommendedAction: "Compare source identity documents and approve as distinct or exclude from filing.",
+  },
+  {
+    id: "EX-002",
+    beneficiaryId: "ben-004",
+    clientId: "acme",
+    batchId: "B-002",
+    issueType: "Missing OEWS wage level",
+    severity: "Medium",
+    owner: "Legal Ops",
+    status: "Open",
+    sourceField: "OEWS wage level",
+    recommendedAction: "Request wage level from client HR and update the role data.",
+  },
+  {
+    id: "EX-003",
+    beneficiaryId: "ben-005",
+    clientId: "acme",
+    batchId: "B-002",
+    issueType: "Missing passport number",
+    severity: "High",
+    owner: "Employer HR",
+    status: "Open",
+    sourceField: "Passport number",
+    recommendedAction: "Request passport number before template generation.",
+  },
+  {
+    id: "EX-004",
+    beneficiaryId: "ben-006",
+    clientId: "acme",
+    batchId: "B-002",
+    issueType: "Invalid country value",
+    severity: "High",
+    owner: "Legal Ops",
+    status: "Open",
+    sourceField: "Country of birth",
+    recommendedAction: "Update country value to the USCIS accepted label.",
+  },
+  {
+    id: "EX-005",
+    beneficiaryId: "ben-002",
+    clientId: "acme",
+    batchId: "B-001",
+    issueType: "Confirmation number missing",
+    severity: "Low",
+    owner: "Legal Ops",
+    status: "Open",
+    sourceField: "USCIS confirmation number",
+    recommendedAction: "Log into USCIS and capture the missing confirmation number.",
+  },
+  {
+    id: "EX-006",
+    beneficiaryId: null,
+    clientId: "meridian",
+    batchId: "B-003",
+    issueType: "Company admin rejected batch",
+    severity: "High",
+    owner: "Legal Ops",
+    status: "Resolved",
+    sourceField: "Company admin approval",
+    recommendedAction: "Resolved after entity name correction and resend.",
+  },
 ];
 
-function computeEmployerReadiness(employer, allExceptions) {
-  const bens = BENEFICIARIES.filter(b => b.empId === employer.id);
-  const rawDupRisks = bens.filter(b => b.duplicate).length;
-  const dupRisks = Math.max(rawDupRisks, employer.duplicates);
+const auditEvents = [
+  "Employer candidate uploaded",
+  "Validation completed",
+  "Duplicate check completed",
+  "Template generated",
+  "USCIS upload completed",
+  "Batch created",
+  "Attorney review completed",
+  "G-28 completed",
+  "Company admin accepted",
+  "Payment completed",
+  "Registration submitted",
+  "Confirmation captured",
+];
 
-  const readyBens   = bens.length > 0 ? bens.filter(b => b.template === "ready").length : employer.complete;
-  const missingInfo = bens.length > 0 ? bens.filter(b => b.validation === "block").length : (employer.candidates - employer.complete);
-  const total       = bens.length > 0 ? bens.length : employer.candidates;
+const tabCopy = {
+  Prepare: "Clean and validate employer, beneficiary, and role data before USCIS upload.",
+  Review: "Resolve exceptions that need attorney or legal ops judgment.",
+  File: "Track USCIS batches through G-28, client approval, payment, and submission.",
+  Track: "Capture confirmation numbers, statuses, and audit records after filing.",
+};
 
-  const exForEmp = allExceptions.filter(e => e.empId === employer.id);
-  const openEx   = exForEmp.filter(e => e.status !== "resolved").length;
-  const highEx   = exForEmp.filter(e => e.severity === "high" && e.status !== "resolved").length;
+const tone = {
+  green: { bg: "#e9fbf4", color: "#0f7f5f", border: "#b5ecd7" },
+  amber: { bg: "#fff7e8", color: "#a15c00", border: "#f1d8a6" },
+  red: { bg: "#fff1ec", color: "#b43214", border: "#f4c8b9" },
+  blue: { bg: "#eff4ff", color: "#2952cc", border: "#d8e2ff" },
+  gray: { bg: "#f7f9fc", color: "#5d6b82", border: "#dbe3ee" },
+};
 
-  const dataScore       = total > 0 ? (readyBens / total) * 100 : 100;
-  const dupScore        = dupRisks === 0 ? 100 : Math.max(0, 100 - dupRisks * 25);
-  const highExScore     = highEx === 0 ? 100 : 0;
-  const petitionerScore = employer.petitionerReady ? 100 : 0;
-  const openExScore     = Math.max(0, 100 - openEx * 15);
+function styleForStatus(value) {
+  if (["Complete", "Captured", "Approved", "Accepted", "Submitted", "Resolved", "On Track"].includes(value)) return tone.green;
+  if (["High", "Blocked", "Open", "Missing Info", "Invalid", "Missing", "Rejected", "At Risk"].includes(value)) return tone.red;
+  if (["Medium", "Required", "In Review", "Pending", "Needs Review", "Not Ready"].includes(value)) return tone.amber;
+  if (["Low", "Uploaded", "Draft"].includes(value)) return tone.blue;
+  return tone.gray;
+}
 
-  const score = Math.round(
-    dataScore       * 0.35 +
-    highExScore     * 0.25 +
-    petitionerScore * 0.20 +
-    dupScore        * 0.15 +
-    openExScore     * 0.05
+function Badge({ children, value }) {
+  const s = styleForStatus(value || children);
+  return (
+    <span style={{
+      display: "inline-flex",
+      alignItems: "center",
+      borderRadius: 999,
+      padding: "3px 9px",
+      border: `1px solid ${s.border}`,
+      background: s.bg,
+      color: s.color,
+      fontSize: 11,
+      fontWeight: 700,
+      whiteSpace: "nowrap",
+    }}>
+      {children}
+    </span>
+  );
+}
+
+function Card({ children, style }) {
+  return (
+    <div style={{
+      background: "#fff",
+      border: "1px solid #dbe3ee",
+      borderRadius: 8,
+      boxShadow: "0 4px 18px rgba(23,43,77,0.05)",
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <div style={{ minWidth: 116 }}>
+      <div style={{ fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 24, fontWeight: 800, color: "#172033" }}>{value}</div>
+      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>{label}</div>
+    </div>
+  );
+}
+
+function getClientName(clientId) {
+  return clients.find((c) => c.id === clientId)?.name || clientId;
+}
+
+function getBeneficiaryName(beneficiaryId, beneficiaries) {
+  return beneficiaries.find((b) => b.id === beneficiaryId)?.name || "-";
+}
+
+function getClientState({ clientId, beneficiaries, exceptions, duplicateRisks, batches, templateGenerated }) {
+  const clientBeneficiaries = beneficiaries.filter((b) => b.clientId === clientId);
+  const clientExceptions = exceptions.filter((e) => e.clientId === clientId);
+  const clientDuplicateRisks = duplicateRisks.filter((r) => {
+    const beneficiary = beneficiaries.find((b) => b.id === r.beneficiaryId);
+    return beneficiary?.clientId === clientId;
+  });
+  const clientBatches = batches.filter((b) => b.clientId === clientId);
+
+  const requiredDataIssues = clientBeneficiaries.filter((b) => b.dataStatus !== "Complete");
+  const invalidFields = clientBeneficiaries.filter((b) => b.dataStatus === "Invalid");
+  const unresolvedHighDuplicates = clientDuplicateRisks.filter((r) => r.confidence === "High" && r.status !== "Resolved");
+  const openExceptions = clientExceptions.filter((e) => e.status !== "Resolved");
+  const highOrMediumExceptions = openExceptions.filter((e) => e.severity === "High" || e.severity === "Medium");
+  const attorneyExceptions = openExceptions.filter((e) => e.owner === "Attorney" || e.issueType.includes("duplicate"));
+  const pendingApprovalBatch = clientBatches.find((b) => b.companyAdminApprovalStatus === "Pending");
+  const rejectedBatch = clientBatches.find((b) => b.companyAdminApprovalStatus === "Rejected");
+  const acceptedUnpaidBatch = clientBatches.find((b) => b.companyAdminApprovalStatus === "Accepted" && b.paymentStatus !== "Complete");
+  const submittedMissingConfirmations = clientBeneficiaries.filter((b) => b.filingStatus === "Submitted" && b.confirmationStatus === "Missing");
+  const auditIncomplete = clientBeneficiaries.filter((b) => b.filingStatus === "Submitted" && b.auditStatus !== "Complete");
+  const readyBeneficiaries = clientBeneficiaries.filter((b) =>
+    b.dataStatus === "Complete" &&
+    (b.duplicateRisk === "None" || b.duplicateRisk === "Low") &&
+    !["Open", "In Review"].includes(b.exceptionStatus)
   );
 
-  let state, color;
-  if (score >= 90)      { state = "Ready";            color = "#0f9f6e"; }
-  else if (score >= 70) { state = "Needs Minor Fixes"; color = "#b7791f"; }
-  else if (score >= 40) { state = "At Risk";           color = "#d97706"; }
-  else                  { state = "Blocked";           color = "#c2410c"; }
+  const prepareComplete = requiredDataIssues.length === 0 && unresolvedHighDuplicates.length === 0 && templateGenerated;
+  const reviewComplete = highOrMediumExceptions.length === 0;
+  const fileComplete = clientBatches.length > 0 && clientBatches.every((b) =>
+    b.submissionStatus === "Submitted" &&
+    b.paymentStatus === "Complete" &&
+    b.companyAdminApprovalStatus === "Accepted" &&
+    b.g28Status === "Complete" &&
+    b.attorneyReviewStatus === "Approved"
+  );
+  const trackComplete = fileComplete && submittedMissingConfirmations.length === 0 && auditIncomplete.length === 0;
 
   let nextAction;
-  if (!employer.petitionerReady) {
-    nextAction = "Confirm petitioner entity and EIN before template generation.";
-  } else if (highEx > 0) {
-    nextAction = `Resolve ${highEx} high-severity exception${highEx > 1 ? "s" : ""} before template generation.`;
-  } else if (missingInfo > 0) {
-    nextAction = `Fix ${missingInfo} validation block${missingInfo > 1 ? "s" : ""} in beneficiary data.`;
-  } else if (dupRisks > 0) {
-    nextAction = `Investigate ${dupRisks} duplicate risk${dupRisks > 1 ? "s" : ""} and clear or document.`;
-  } else if (openEx > 0) {
-    nextAction = `Resolve ${openEx} remaining open exception${openEx > 1 ? "s" : ""}.`;
+  if (requiredDataIssues.length > 0) {
+    nextAction = { tab: "Prepare", text: `Resolve ${requiredDataIssues.length} missing or invalid beneficiary field${requiredDataIssues.length === 1 ? "" : "s"} before generating the template.`, cta: "Go to Prepare" };
+  } else if (unresolvedHighDuplicates.length > 0) {
+    nextAction = { tab: "Review", text: `Review ${unresolvedHighDuplicates.length} high-confidence duplicate match${unresolvedHighDuplicates.length === 1 ? "" : "es"} blocking template generation.`, cta: "Go to Review Queue" };
+  } else if (attorneyExceptions.length > 0) {
+    nextAction = { tab: "Review", text: `Attorney review required for ${attorneyExceptions.length} open exception${attorneyExceptions.length === 1 ? "" : "s"}.`, cta: "Go to Review Queue" };
+  } else if (!templateGenerated) {
+    nextAction = { tab: "Prepare", text: "All required data is complete. Generate USCIS template.", cta: "Generate Template" };
+  } else if (pendingApprovalBatch) {
+    nextAction = { tab: "File", text: `${pendingApprovalBatch.id} is pending company admin approval. Send reminder.`, cta: "Go to File" };
+  } else if (rejectedBatch) {
+    nextAction = { tab: "File", text: `${rejectedBatch.id} was rejected by company admin. View reason and resend.`, cta: "Go to File" };
+  } else if (acceptedUnpaidBatch) {
+    nextAction = { tab: "File", text: `${acceptedUnpaidBatch.id} accepted by client admin. Complete Pay.gov payment.`, cta: "Go to File" };
+  } else if (submittedMissingConfirmations.length > 0) {
+    nextAction = { tab: "Track", text: `${submittedMissingConfirmations.length} submitted registration${submittedMissingConfirmations.length === 1 ? " is" : "s are"} missing confirmation numbers.`, cta: "Go to Track" };
+  } else if (auditIncomplete.length > 0) {
+    nextAction = { tab: "Track", text: `${auditIncomplete.length} audit packet${auditIncomplete.length === 1 ? " is" : "s are"} incomplete.`, cta: "Go to Track" };
   } else {
-    nextAction = "All checks passed — ready to generate template.";
+    nextAction = { tab: "Track", text: "All filings complete.", cta: "View Track" };
   }
 
-  return { score, state, color, readyBens, missingInfo, dupRisks, openEx, highEx, nextAction, total };
-}
+  let overallStatus = "On Track";
+  if (trackComplete) overallStatus = "Complete";
+  else if (openExceptions.some((e) => e.severity === "High") || rejectedBatch) overallStatus = "Blocked";
+  else if (requiredDataIssues.length > 0 || unresolvedHighDuplicates.length > 0 || submittedMissingConfirmations.length > 0 || auditIncomplete.length > 0) overallStatus = "At Risk";
 
-function computeBatchReadiness(batch, allExceptions) {
-  const batchEx = allExceptions.filter(e => e.batchId === batch.id && e.status !== "resolved");
-  const highEx  = batchEx.filter(e => e.severity === "high").length;
-
-  const reviewDone  = batch.review === "complete";
-  const noExcept    = batch.exceptions === 0 && highEx === 0;
-  const g28Accepted = batch.g28 === "accepted";
-  const paid        = batch.payment === "paid";
-  const submitted   = batch.submission === "submitted";
-
-  let score, stage, blocking;
-
-  if (submitted) {
-    score = 100; stage = "Submitted"; blocking = null;
-  } else if (g28Accepted && paid && reviewDone && noExcept) {
-    score = 88; stage = "Ready to Submit"; blocking = null;
-  } else if (g28Accepted && paid) {
-    score = 72; stage = "Payment Confirmed";
-    blocking = !reviewDone ? "Attorney review pending" : batchEx.length > 0 ? `${batchEx.length} open exception${batchEx.length > 1 ? "s" : ""}` : null;
-  } else if (g28Accepted) {
-    score = 58; stage = "G-28 Accepted"; blocking = "Payment pending";
-  } else if (batch.g28 === "sent" || batch.g28 === "pending") {
-    score = 42; stage = "G-28 Pending"; blocking = "Awaiting client G-28 acceptance";
-  } else if (reviewDone) {
-    score = 30; stage = "Review Complete"; blocking = "G-28 not yet sent";
-  } else if (batch.review === "in_review") {
-    score = 20; stage = "In Review"; blocking = "Attorney review in progress";
-  } else {
-    score = 10; stage = "Not Started"; blocking = "Attorney review not started";
-  }
-
-  if (highEx > 0 && score < 90) {
-    score = Math.min(score, 30);
-    blocking = blocking || `${highEx} high-severity exception${highEx > 1 ? "s" : ""}`;
-  }
-
-  const color = score >= 88 ? "#0f9f6e" : score >= 55 ? "#b7791f" : "#c2410c";
-  return { score, stage, blocking, color };
-}
-
-const StatusBadge = ({ type, label }) => {
-  const colors = {
-    ready: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
-    pass: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
-    complete: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
-    accepted: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
-    paid: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
-    submitted: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
-    Selected: { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7" },
-    in_progress: { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6" },
-    warning: { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6" },
-    in_review: { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6" },
-    pending: { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6" },
-    sent: { bg: "#eff4ff", color: "#2952cc", border: "#d8e2ff" },
-    blocked: { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9" },
-    block: { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9" },
-    unpaid: { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9" },
-    not_ready: { bg: "#f5f0ff", color: "#6d28d9", border: "#e0d4f7" },
-    not_started: { bg: "#f7f9fc", color: "#6b7280", border: "#dbe3ee" },
-    not_sent: { bg: "#f7f9fc", color: "#6b7280", border: "#dbe3ee" },
-    "Not Selected": { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9" },
+  const stageStatuses = {
+    Prepare: prepareComplete ? "Complete" : requiredDataIssues.length > 0 || unresolvedHighDuplicates.length > 0 ? "Blocked" : "In Progress",
+    Review: reviewComplete ? "Complete" : highOrMediumExceptions.some((e) => e.severity === "High") ? "Blocked" : "In Progress",
+    File: fileComplete ? "Complete" : prepareComplete && reviewComplete ? "In Progress" : "Not Started",
+    Track: trackComplete ? "Complete" : fileComplete ? (submittedMissingConfirmations.length > 0 || auditIncomplete.length > 0 ? "Blocked" : "In Progress") : "Not Started",
   };
-  const c = colors[type] || colors.not_started;
-  const displayLabel = label || type.replace(/_/g, " ");
-  return (
-    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: c.bg, color: c.color, border: `1px solid ${c.border}`, textTransform: "capitalize", letterSpacing: "0.02em" }}>
-      {displayLabel}
-    </span>
-  );
-};
 
-const ReadinessBar = ({ score, color, width = 64, height = 6 }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-    <div style={{ width, height, borderRadius: 3, background: "#eef1f6", overflow: "hidden", flexShrink: 0 }}>
-      <div style={{ width: `${score}%`, height: "100%", borderRadius: 3, background: color, transition: "width 0.5s ease" }} />
-    </div>
-    <span style={{ fontSize: 12, fontWeight: 700, color, minWidth: 28 }}>{score}%</span>
-  </div>
-);
+  return {
+    clientBeneficiaries,
+    clientExceptions,
+    clientDuplicateRisks,
+    clientBatches,
+    requiredDataIssues,
+    invalidFields,
+    unresolvedHighDuplicates,
+    openExceptions,
+    highOrMediumExceptions,
+    submittedMissingConfirmations,
+    auditIncomplete,
+    readyBeneficiaries,
+    nextAction,
+    overallStatus,
+    stageStatuses,
+  };
+}
 
-const ChecklistItem = ({ done, label }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 13, color: done ? "#0f9f6e" : "#6b7280" }}>
-    <span style={{ width: 18, height: 18, borderRadius: 4, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done ? "#e9fbf4" : "#f7f9fc", border: `1.5px solid ${done ? "#0f9f6e" : "#dbe3ee"}`, fontSize: 11, fontWeight: 700 }}>
-      {done ? "✓" : ""}
-    </span>
-    <span>{label}</span>
-  </div>
-);
-
-const SEVERITY_STYLES = {
-  high:   { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9", label: "High" },
-  medium: { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6", label: "Medium" },
-  low:    { bg: "#eff4ff", color: "#2952cc", border: "#d8e2ff", label: "Low" },
-};
-const STATUS_STYLES = {
-  open:              { bg: "#fff1ec", color: "#c2410c", border: "#f4c8b9", label: "Open" },
-  in_review:         { bg: "#fff7e8", color: "#b7791f", border: "#f1d8a6", label: "In Review" },
-  waiting_on_client: { bg: "#eff4ff", color: "#2952cc", border: "#d8e2ff", label: "Waiting on Client" },
-  resolved:          { bg: "#e9fbf4", color: "#0f9f6e", border: "#b5ecd7", label: "Resolved" },
-};
-
-const pill = (styles) => ({
-  display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-  background: styles.bg, color: styles.color, border: `1px solid ${styles.border}`,
-});
-
-const SeverityBadge = ({ severity }) => {
-  const s = SEVERITY_STYLES[severity] || SEVERITY_STYLES.low;
-  return <span style={pill(s)}>{s.label}</span>;
-};
-
-const ExStatusPill = ({ status }) => {
-  const s = STATUS_STYLES[status] || STATUS_STYLES.open;
-  return <span style={pill(s)}>{s.label}</span>;
-};
-
-// ─── SCREENS ──────────────────────────────────────────────
-
-const EmployerDashboard = ({ onSelectEmployer, exceptions }) => {
-  const empReadiness = useMemo(
-    () => EMPLOYERS.reduce((acc, e) => { acc[e.id] = computeEmployerReadiness(e, exceptions); return acc; }, {}),
-    [exceptions]
-  );
-
-  const readyCount   = EMPLOYERS.filter(e => empReadiness[e.id].score >= 90).length;
-  const fixesCount   = EMPLOYERS.filter(e => { const s = empReadiness[e.id].score; return s >= 70 && s < 90; }).length;
-  const blockedCount = EMPLOYERS.filter(e => empReadiness[e.id].score < 70).length;
+function CommandCenter({ selectedClientId, setSelectedClientId, state, setActiveTab }) {
+  const metrics = [
+    ["Beneficiaries", state.clientBeneficiaries.length],
+    ["Ready", state.readyBeneficiaries.length],
+    ["Open exceptions", state.openExceptions.length],
+    ["Duplicate risks", state.clientDuplicateRisks.filter((r) => r.status !== "Resolved").length],
+    ["Batches", state.clientBatches.length],
+    ["Submitted", state.clientBeneficiaries.filter((b) => b.filingStatus === "Submitted").length],
+  ];
 
   return (
-    <div>
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Employer Dashboard</h2>
-        <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>FY2027 H-1B Cap Season — 6 employer clients, 202 total candidates</p>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
-        {[
-          { label: "Ready (≥90%)",          value: readyCount,   color: "#0f9f6e", bg: "#e9fbf4" },
-          { label: "Needs Minor Fixes (70–89%)", value: fixesCount, color: "#b7791f", bg: "#fff7e8" },
-          { label: "Blocked (<70%)",         value: blockedCount, color: "#c2410c", bg: "#fff1ec" },
-        ].map((s, i) => (
-          <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "16px 18px", border: `1px solid ${s.color}22` }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
-            <div style={{ fontSize: 13, color: s.color, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "auto", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 860 }}>
-          <thead>
-            <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
-              {["Employer", "EIN", "Beneficiaries", "Dup. Risks", "Open Ex.", "Petitioner", "Readiness", "Next Action"].map(h => (
-                <th key={h} style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {EMPLOYERS.map(emp => {
-              const r = empReadiness[emp.id];
-              return (
-                <tr key={emp.id} onClick={() => onSelectEmployer(emp)}
-                  style={{ borderBottom: "1px solid #eef1f6", cursor: "pointer", transition: "background 0.15s" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#f8fbff"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                >
-                  <td style={{ padding: "14px 14px", fontWeight: 600, color: "#1f2937", whiteSpace: "nowrap" }}>{emp.name}</td>
-                  <td style={{ padding: "14px 14px", color: "#6b7280", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{emp.ein}</td>
-                  <td style={{ padding: "14px 14px" }}>
-                    <span style={{ fontWeight: 700, fontFamily: "'DM Mono', monospace", color: r.readyBens === r.total ? "#0f9f6e" : "#b7791f" }}>
-                      {r.readyBens}/{r.total}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 4 }}>ready</span>
-                  </td>
-                  <td style={{ padding: "14px 14px" }}>
-                    {r.dupRisks > 0
-                      ? <span style={{ fontWeight: 700, color: "#c2410c", fontFamily: "'DM Mono', monospace" }}>{r.dupRisks}</span>
-                      : <span style={{ color: "#0f9f6e" }}>—</span>}
-                  </td>
-                  <td style={{ padding: "14px 14px" }}>
-                    {r.openEx > 0
-                      ? <span style={{ fontWeight: 700, color: r.highEx > 0 ? "#c2410c" : "#b7791f", fontFamily: "'DM Mono', monospace" }}>{r.openEx}</span>
-                      : <span style={{ color: "#0f9f6e" }}>—</span>}
-                  </td>
-                  <td style={{ padding: "14px 14px" }}>
-                    <StatusBadge type={emp.petitionerReady ? "ready" : "blocked"} label={emp.petitionerReady ? "Ready" : "Incomplete"} />
-                  </td>
-                  <td style={{ padding: "14px 14px", minWidth: 130 }}>
-                    <ReadinessBar score={r.score} color={r.color} />
-                    <div style={{ fontSize: 10, color: r.color, fontWeight: 600, marginTop: 3 }}>{r.state}</div>
-                  </td>
-                  <td style={{ padding: "14px 14px", fontSize: 12, color: "#6b7280", maxWidth: 220 }}>
-                    <span title={r.nextAction} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {r.nextAction}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-const DataHub = ({ employer, onBack, exceptions }) => {
-  const [filter, setFilter] = useState("all");
-  const bens = BENEFICIARIES.filter(b => b.empId === (employer?.id || 1));
-  const filtered = filter === "all" ? bens : bens.filter(b => b.validation === filter || (filter === "duplicate" && b.duplicate));
-  const [expandedDup, setExpandedDup] = useState(null);
-  const passCount = bens.filter(b => b.validation === "pass").length;
-  const warnCount = bens.filter(b => b.validation === "warning").length;
-  const blockCount = bens.filter(b => b.validation === "block").length;
-  const templateReady = bens.filter(b => b.template === "ready").length;
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <button onClick={onBack} style={{ background: "none", border: "1px solid #dbe3ee", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 13, color: "#6b7280" }}>← Back</button>
+    <Card style={{ padding: 18, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1.4fr) minmax(320px, 2fr)", gap: 18, alignItems: "start" }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{employer?.name || "Meridian Health Systems"} — Data Hub</h2>
-          <p style={{ margin: "2px 0 0", color: "#6b7280", fontSize: 13 }}>Beneficiary data, validation, and template status</p>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>Client</div>
+          <select
+            value={selectedClientId}
+            onChange={(event) => setSelectedClientId(event.target.value)}
+            style={{ marginTop: 6, width: "100%", padding: "9px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", color: "#172033", fontWeight: 800, fontSize: 16 }}
+          >
+            {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+          </select>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+            <span style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Overall status</span>
+            <Badge value={state.overallStatus}>{state.overallStatus}</Badge>
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>Next Best Action</div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 7 }}>
+            <div style={{ flex: 1, color: "#172033", fontWeight: 800, lineHeight: 1.35 }}>{state.nextAction.text}</div>
+            <button onClick={() => setActiveTab(state.nextAction.tab)} style={primaryButton()}>{state.nextAction.cta}</button>
+          </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "Pass", value: passCount, type: "pass" },
-          { label: "Warnings", value: warnCount, type: "warning" },
-          { label: "Blocked", value: blockCount, type: "block" },
-          { label: "Template Ready", value: templateReady, type: "ready" },
-        ].map((s, i) => (
-          <div key={i} onClick={() => setFilter(s.type === "ready" ? "all" : s.type)} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: `1px solid ${filter === s.type ? "#2952cc" : "#dbe3ee"}`, cursor: "pointer", transition: "border 0.15s" }}>
-            <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>{s.label}</div>
-          </div>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(100px, 1fr))", gap: 10, marginTop: 18 }}>
+        {metrics.map(([label, value]) => <Metric key={label} label={label} value={value} />)}
       </div>
+    </Card>
+  );
+}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {["all", "pass", "warning", "block", "duplicate"].map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 14px", borderRadius: 999, fontSize: 12, fontWeight: 600, border: `1px solid ${filter === f ? "#2952cc" : "#dbe3ee"}`, background: filter === f ? "#eff4ff" : "#fff", color: filter === f ? "#2952cc" : "#6b7280", cursor: "pointer", textTransform: "capitalize" }}>
-            {f === "all" ? "All Records" : f}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "auto", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 900 }}>
-          <thead>
-            <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
-              {["Name", "Passport", "DOB", "COB", "SOC", "Wage", "Location", "Validation", "Duplicate", "Template"].map(h => (
-                <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(b => (
-              <>
-                <tr key={b.id} style={{ borderBottom: "1px solid #eef1f6" }}>
-                  <td style={{ padding: "10px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{b.name}</td>
-                  <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: b.passport ? "#1f2937" : "#c2410c" }}>{b.passport || "MISSING"}</td>
-                  <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{b.dob}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 11 }}>{b.cob}</td>
-                  <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{b.soc}</td>
-                  <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                    {b.wage ? <span style={{ fontWeight: 700, fontSize: 11 }}>{b.wage}</span> : <span style={{ color: "#c2410c", fontSize: 11, fontWeight: 700 }}>—</span>}
-                  </td>
-                  <td style={{ padding: "10px 12px", fontSize: 11 }}>{b.city}, {b.state}</td>
-                  <td style={{ padding: "10px 12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <StatusBadge type={b.validation} />
-                      {b.validationDetails && <span title={b.validationDetails} style={{ cursor: "help", fontSize: 14 }}>ⓘ</span>}
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 12px" }}>
-                    {b.duplicate ? (
-                      <button onClick={() => setExpandedDup(expandedDup === b.id ? null : b.id)} style={{ background: "#fff7e8", border: "1px solid #f1d8a6", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer", fontWeight: 600, color: "#b7791f" }}>
-                        {b.duplicate === "strong_fuzzy" ? "Strong match ▾" : "Fuzzy ▾"}
-                      </button>
-                    ) : <span style={{ color: "#0f9f6e", fontSize: 11 }}>Clean</span>}
-                  </td>
-                  <td style={{ padding: "10px 12px" }}><StatusBadge type={b.template === "ready" ? "ready" : "blocked"} label={b.template} /></td>
-                </tr>
-                {expandedDup === b.id && b.duplicateMatch && (
-                  <tr key={`dup-${b.id}`} style={{ background: "#fffcf5" }}>
-                    <td colSpan={10} style={{ padding: "10px 16px 14px", fontSize: 12 }}>
-                      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                        <div style={{ flex: 1, padding: 12, background: "#fff", borderRadius: 10, border: "1px solid #f1d8a6" }}>
-                          <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", color: "#b7791f", marginBottom: 6 }}>Current Record</div>
-                          <div><strong>{b.name}</strong> · {b.passport} · {b.dob} · {b.cob}</div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", fontSize: 20, color: "#b7791f", paddingTop: 16 }}>⇄</div>
-                        <div style={{ flex: 1, padding: 12, background: "#fff", borderRadius: 10, border: "1px solid #f1d8a6" }}>
-                          <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", color: "#b7791f", marginBottom: 6 }}>Potential Duplicate</div>
-                          <div><strong>{b.duplicateMatch}</strong></div>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 8 }}>
-                          <button style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #0f9f6e", background: "#e9fbf4", color: "#0f9f6e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Not a Duplicate</button>
-                          <button style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #c2410c", background: "#fff1ec", color: "#c2410c", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Remove Record</button>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {(() => {
-        const hasHighEx = exceptions?.some(e => e.empId === (employer?.id || 1) && e.severity === "high" && e.status !== "resolved");
-        const blocked = blockCount > 0 || hasHighEx;
-        const label = blockCount > 0 ? `Resolve ${blockCount} validation blocks first` : hasHighEx ? "Resolve open high-severity exceptions first" : "Generate USCIS Template";
-        return (
-          <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
-            <button disabled={blocked} style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: blocked ? "#dbe3ee" : "#2952cc", color: blocked ? "#6b7280" : "#fff", fontSize: 14, fontWeight: 700, cursor: blocked ? "not-allowed" : "pointer" }}>
-              {label}
+function WorkflowBar({ stageStatuses, activeTab, setActiveTab }) {
+  const stages = ["Prepare", "Review", "File", "Track"];
+  return (
+    <Card style={{ padding: 14, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+        {stages.map((stage, index) => {
+          const status = stageStatuses[stage];
+          const active = activeTab === stage;
+          return (
+            <button
+              key={stage}
+              onClick={() => setActiveTab(stage)}
+              style={{
+                border: `1px solid ${active ? "#2952cc" : "#dbe3ee"}`,
+                background: active ? "#eff4ff" : "#fff",
+                borderRadius: 8,
+                padding: "12px 10px",
+                textAlign: "left",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#172033", fontWeight: 900 }}>
+                <span style={{ width: 22, height: 22, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: active ? "#2952cc" : "#eef2f7", color: active ? "#fff" : "#475569", fontSize: 12 }}>{index + 1}</span>
+                {stage}
+              </div>
+              <div style={{ marginTop: 8 }}><Badge value={status}>{status}</Badge></div>
             </button>
-          </div>
-        );
-      })()}
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function primaryButton(disabled = false) {
+  return {
+    border: "none",
+    borderRadius: 8,
+    padding: "9px 14px",
+    background: disabled ? "#cbd5e1" : "#2952cc",
+    color: disabled ? "#64748b" : "#fff",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: disabled ? "not-allowed" : "pointer",
+    whiteSpace: "nowrap",
+    fontFamily: "inherit",
+  };
+}
+
+function secondaryButton() {
+  return {
+    border: "1px solid #cbd5e1",
+    borderRadius: 8,
+    padding: "8px 12px",
+    background: "#fff",
+    color: "#172033",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    fontFamily: "inherit",
+  };
+}
+
+function SectionHeader({ tab }) {
+  return (
+    <div style={{ margin: "4px 0 16px" }}>
+      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#172033" }}>{tab}</h2>
+      <p style={{ marginTop: 4, color: "#64748b", fontSize: 14 }}>{tabCopy[tab]}</p>
     </div>
   );
-};
+}
 
-const FilingControlCenter = ({ exceptions }) => {
-  const [selectedBatch, setSelectedBatch] = useState(null);
-  const batch = selectedBatch ? BATCHES.find(b => b.id === selectedBatch) : null;
-
-  const batchReadiness = useMemo(
-    () => BATCHES.reduce((acc, b) => { acc[b.id] = computeBatchReadiness(b, exceptions); return acc; }, {}),
-    [exceptions]
+function SummaryGrid({ items }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${items.length}, minmax(130px, 1fr))`, gap: 12, marginBottom: 16 }}>
+      {items.map((item) => {
+        const s = item.tone || styleForStatus(item.status || item.label);
+        return (
+          <Card key={item.label} style={{ padding: 14, borderColor: s.border, background: s.bg }}>
+            <div style={{ fontFamily: "'DM Mono', ui-monospace, monospace", color: s.color, fontWeight: 900, fontSize: 24 }}>{item.value}</div>
+            <div style={{ color: s.color, fontSize: 12, fontWeight: 800 }}>{item.label}</div>
+          </Card>
+        );
+      })}
+    </div>
   );
+}
+
+function PrepareTab({ client, state, templateGenerated, setTemplateGenerated, setActiveTab }) {
+  const [expandedRisk, setExpandedRisk] = useState(null);
+  const blockers = state.requiredDataIssues.length + state.unresolvedHighDuplicates.length + state.openExceptions.filter((e) => e.severity === "High").length;
+  const templateStatus = templateGenerated ? "Generated" : blockers > 0 ? "Not Ready" : "Ready";
+  const duplicateStats = {
+    total: state.clientDuplicateRisks.length,
+    high: state.clientDuplicateRisks.filter((r) => r.confidence === "High").length,
+    pending: state.clientDuplicateRisks.filter((r) => r.status !== "Resolved").length,
+    resolved: state.clientDuplicateRisks.filter((r) => r.status === "Resolved").length,
+  };
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Filing Control Center</h2>
-        <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>Batch tracking, exception review, and submission readiness</p>
-      </div>
+      <SectionHeader tab="Prepare" />
+      <Card style={{ padding: 16, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
+          {[
+            ["Client", client.name],
+            ["Petitioner entity", client.petitionerEntity],
+            ["EIN", client.ein],
+            ["Authorized signatory", client.authorizedSignatory],
+            ["Attorney owner", client.attorneyOwner],
+            ["Legal ops owner", client.legalOpsOwner],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "#64748b", fontWeight: 900 }}>{label}</div>
+              <div style={{ marginTop: 3, fontSize: 13, color: "#172033", fontWeight: 800 }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: selectedBatch ? "1fr 340px" : "1fr", gap: 18 }}>
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "auto", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 860 }}>
-            <thead>
-              <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
-                {["Batch ID", "Employer", "Count", "Readiness", "Stage", "Blocking Issue", "G-28", "Payment", "Status"].map(h => (
-                  <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
+      <SummaryGrid items={[
+        { label: "Required fields complete", value: `${state.clientBeneficiaries.length - state.requiredDataIssues.length}/${state.clientBeneficiaries.length}`, status: state.requiredDataIssues.length ? "At Risk" : "Complete" },
+        { label: "Missing info", value: state.requiredDataIssues.filter((b) => b.dataStatus === "Missing Info").length, status: state.requiredDataIssues.length ? "Open" : "Complete" },
+        { label: "Invalid fields", value: state.invalidFields.length, status: state.invalidFields.length ? "Invalid" : "Complete" },
+        { label: "Duplicate risks", value: duplicateStats.pending, status: duplicateStats.pending ? "At Risk" : "Complete" },
+        { label: "Template readiness", value: templateStatus, status: templateStatus },
+      ]} />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
+        <Card style={{ overflow: "auto" }}>
+          <table style={tableStyle(960)}>
+            <thead>{tableHead(["Beneficiary name", "Passport status", "Biographic data", "SOC/OEWS", "Area of employment", "Duplicate risk", "Overall readiness", "Action"])}</thead>
             <tbody>
-              {BATCHES.map(b => {
-                const br = batchReadiness[b.id];
+              {state.clientBeneficiaries.map((b) => {
+                const ready = b.dataStatus === "Complete" && !["High", "Medium"].includes(b.duplicateRisk) && !["Open", "In Review"].includes(b.exceptionStatus);
                 return (
-                  <tr key={b.id} onClick={() => setSelectedBatch(b.id)}
-                    style={{ borderBottom: "1px solid #eef1f6", cursor: "pointer", background: selectedBatch === b.id ? "#f8fbff" : "transparent", transition: "background 0.15s" }}
-                    onMouseEnter={e => { if (selectedBatch !== b.id) e.currentTarget.style.background = "#fcfdff"; }}
-                    onMouseLeave={e => { if (selectedBatch !== b.id) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 11 }}>{b.id}</td>
-                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{b.empName}</td>
-                    <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>{b.count}</td>
-                    <td style={{ padding: "10px 12px", minWidth: 110 }}>
-                      <ReadinessBar score={br.score} color={br.color} width={48} height={5} />
+                  <tr key={b.id} style={rowStyle()}>
+                    <td style={cellStyle(true)}>{b.name}</td>
+                    <td style={cellStyle()}><Badge value={b.passportStatus}>{b.passportStatus}</Badge></td>
+                    <td style={cellStyle()}><Badge value={b.biographicStatus}>{b.biographicStatus}</Badge></td>
+                    <td style={cellStyle()}><Badge value={b.socOewsStatus}>{b.socOewsStatus}</Badge></td>
+                    <td style={cellStyle()}><Badge value={b.areaStatus}>{b.areaStatus}</Badge></td>
+                    <td style={cellStyle()}><Badge value={b.duplicateRisk}>{b.duplicateRisk}</Badge></td>
+                    <td style={cellStyle()}><Badge value={ready ? "Complete" : "Blocked"}>{ready ? "Ready for Template" : "Blocked"}</Badge></td>
+                    <td style={cellStyle()}>
+                      <button onClick={() => setActiveTab(ready ? "File" : "Review")} style={secondaryButton()}>{ready ? "Assign Batch" : "Review"}</button>
                     </td>
-                    <td style={{ padding: "10px 12px", fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" }}>{br.stage}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 11, maxWidth: 160 }}>
-                      {br.blocking
-                        ? <span style={{ color: "#c2410c", fontWeight: 600 }} title={br.blocking}>{br.blocking}</span>
-                        : <span style={{ color: "#0f9f6e" }}>—</span>}
-                    </td>
-                    <td style={{ padding: "10px 12px" }}><StatusBadge type={b.g28} label={b.g28.replace(/_/g, " ")} /></td>
-                    <td style={{ padding: "10px 12px" }}><StatusBadge type={b.payment} /></td>
-                    <td style={{ padding: "10px 12px" }}><StatusBadge type={b.submission === "submitted" ? "submitted" : b.submission} label={b.submission.replace(/_/g, " ")} /></td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+        </Card>
 
-        {batch && (() => {
-          const br = batchReadiness[batch.id];
-          return (
-            <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", padding: 18, boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{batch.id}</h3>
-                <button onClick={() => setSelectedBatch(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b7280" }}>✕</button>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Card style={{ padding: 16 }}>
+            <h3 style={panelTitle()}>Duplicate Risk Summary</h3>
+            {[
+              ["Total duplicate risks", duplicateStats.total],
+              ["High-confidence matches", duplicateStats.high],
+              ["Pending attorney review", duplicateStats.pending],
+              ["Resolved", duplicateStats.resolved],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #eef2f7", fontSize: 13 }}>
+                <span style={{ color: "#64748b", fontWeight: 700 }}>{label}</span>
+                <strong style={{ color: "#172033" }}>{value}</strong>
               </div>
-
-              <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: br.score >= 88 ? "#e9fbf4" : br.score >= 55 ? "#fff7e8" : "#fff1ec", border: `1px solid ${br.color}33` }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em" }}>Readiness</div>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: br.color, fontFamily: "'DM Mono', monospace" }}>{br.score}%</span>
-                </div>
-                <div style={{ width: "100%", height: 7, borderRadius: 4, background: "#eef1f6", overflow: "hidden", marginBottom: 8 }}>
-                  <div style={{ width: `${br.score}%`, height: "100%", borderRadius: 4, background: br.color, transition: "width 0.5s ease" }} />
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: br.color }}>{br.stage}</div>
-                {br.blocking && (
-                  <div style={{ marginTop: 6, fontSize: 11, color: "#c2410c", fontWeight: 600 }}>⚑ {br.blocking}</div>
+            ))}
+            {state.clientDuplicateRisks.map((risk) => (
+              <div key={risk.id} style={{ marginTop: 10 }}>
+                <button onClick={() => setExpandedRisk(expandedRisk === risk.id ? null : risk.id)} style={{ ...secondaryButton(), width: "100%", textAlign: "left" }}>
+                  {getBeneficiaryName(risk.beneficiaryId, state.clientBeneficiaries)} - {risk.confidence}
+                </button>
+                {expandedRisk === risk.id && (
+                  <div style={{ padding: 10, fontSize: 12, color: "#475569", lineHeight: 1.45 }}>
+                    <strong>{risk.matchType}:</strong> {risk.matchedRecord}<br />
+                    {risk.riskReason}
+                  </div>
                 )}
               </div>
+            ))}
+          </Card>
 
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-                <div><strong>Employer:</strong> {batch.empName}</div>
-                <div><strong>Petitioner:</strong> {batch.petitioner}</div>
-                <div><strong>Beneficiaries:</strong> {batch.count}</div>
-              </div>
-
-              <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 10 }}>Submission Checklist</div>
-              <ChecklistItem done={batch.review === "complete"} label="Attorney review complete" />
-              <ChecklistItem done={batch.exceptions === 0} label="All exceptions resolved" />
-              <ChecklistItem done={batch.g28 === "accepted"} label="G-28 accepted by client" />
-              <ChecklistItem done={batch.payment === "paid"} label="Payment confirmed" />
-              <ChecklistItem done={batch.submission === "submitted"} label="Submitted to USCIS" />
-
-              {batch.submission !== "submitted" && (
-                <div style={{ marginTop: 16 }}>
-                  <div style={{ padding: 12, borderRadius: 10, background: batch.g28 === "pending" || batch.g28 === "sent" ? "#fff7e8" : "#f7f9fc", border: `1px solid ${batch.g28 === "pending" ? "#f1d8a6" : "#dbe3ee"}`, fontSize: 12, color: "#6b7280" }}>
-                    {batch.g28 === "pending" && <><span style={{ color: "#b7791f", fontWeight: 700 }}>⚠ G-28 pending:</span> Sent 2 days ago. Auto-reminder scheduled in 24h.</>}
-                    {batch.g28 === "sent" && <><span style={{ color: "#2952cc", fontWeight: 700 }}>ℹ G-28 sent:</span> Awaiting company admin action.</>}
-                    {batch.g28 === "not_sent" && <>G-28 not yet prepared. Complete attorney review first.</>}
-                    {batch.g28 === "accepted" && batch.payment === "unpaid" && <><span style={{ color: "#b7791f", fontWeight: 700 }}>→ Next step:</span> Complete payment via Pay.gov</>}
-                  </div>
-                </div>
-              )}
-
-              {batch.confirmation && (
-                <div style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#e9fbf4", border: "1px solid #b5ecd7" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#0f9f6e", marginBottom: 4 }}>Confirmed</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700 }}>{batch.confirmation}</div>
-                </div>
-              )}
-
-              {batch.submission !== "submitted" && (
-                <div style={{ marginTop: 16 }}>
-                  <button
-                    disabled={!!br.blocking}
-                    style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: "none", background: br.blocking ? "#dbe3ee" : "#2952cc", color: br.blocking ? "#6b7280" : "#fff", fontSize: 13, fontWeight: 700, cursor: br.blocking ? "not-allowed" : "pointer" }}
-                  >
-                    {br.blocking ? `Blocked: ${br.blocking}` : "Mark Ready for Submission"}
-                  </button>
-                </div>
-              )}
+          <Card style={{ padding: 16 }}>
+            <h3 style={panelTitle()}>USCIS Template Generation</h3>
+            <div style={{ display: "grid", gap: 8, fontSize: 13, color: "#475569", marginBottom: 14 }}>
+              <div>Status: <Badge value={templateStatus}>{templateStatus}</Badge></div>
+              <div>Beneficiary count included: <strong>{blockers ? state.readyBeneficiaries.length : state.clientBeneficiaries.length}</strong></div>
+              <div>Last generated: <strong>{templateGenerated ? "2026-05-01 09:10 CT" : "Not generated"}</strong></div>
+              <div>Generated by: <strong>{templateGenerated ? "Evan Brooks" : "-"}</strong></div>
             </div>
-          );
-        })()}
+            <div style={{ padding: 10, borderRadius: 8, background: blockers ? "#fff1ec" : "#e9fbf4", border: `1px solid ${blockers ? "#f4c8b9" : "#b5ecd7"}`, color: blockers ? "#b43214" : "#0f7f5f", fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
+              {blockers ? state.nextAction.text : "All required data is complete. Generate USCIS template."}
+            </div>
+            <button disabled={blockers > 0} onClick={() => setTemplateGenerated(true)} style={{ ...primaryButton(blockers > 0), width: "100%" }}>
+              Generate USCIS Bulk Upload Template
+            </button>
+          </Card>
+        </div>
       </div>
     </div>
   );
-};
+}
 
-const ConfirmationTracker = () => (
-  <div>
-    <div style={{ marginBottom: 24 }}>
-      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Confirmation Tracker</h2>
-      <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>Post-submission reconciliation and audit records</p>
-    </div>
+function ReviewTab({ state, exceptions, setExceptions, setDuplicateRisks, beneficiaries, setBeneficiaries }) {
+  const [filters, setFilters] = useState({ severity: "All", owner: "All", status: "All" });
+  const [selectedExceptionId, setSelectedExceptionId] = useState(null);
+  const [note, setNote] = useState("");
+  const selectedException = exceptions.find((e) => e.id === selectedExceptionId);
+  const scopedExceptions = exceptions.filter((e) => e.clientId === state.clientBeneficiaries[0]?.clientId);
+  const filtered = scopedExceptions.filter((e) =>
+    (filters.severity === "All" || e.severity === filters.severity) &&
+    (filters.owner === "All" || e.owner === filters.owner) &&
+    (filters.status === "All" || e.status === filters.status)
+  );
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
-      {[
-        { label: "Submitted Batches", value: CONFIRMATIONS.length, color: "#2952cc", bg: "#eff4ff" },
-        { label: "Count Match", value: CONFIRMATIONS.filter(c => c.expected === c.confirmed).length + "/" + CONFIRMATIONS.length, color: "#0f9f6e", bg: "#e9fbf4" },
-        { label: "Audit Complete", value: CONFIRMATIONS.filter(c => c.auditComplete).length + "/" + CONFIRMATIONS.length, color: "#6d28d9", bg: "#f5f0ff" },
-      ].map((s, i) => (
-        <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "16px 18px", border: `1px solid ${s.color}22` }}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
-          <div style={{ fontSize: 13, color: s.color, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
-        </div>
-      ))}
-    </div>
-
-    <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "hidden", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-        <thead>
-          <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
-            {["Batch ID", "Employer", "Confirmation #", "Lottery Status", "Submitted", "Expected", "Confirmed", "Reconciled", "Audit"].map(h => (
-              <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {CONFIRMATIONS.map(c => (
-            <tr key={c.batchId} style={{ borderBottom: "1px solid #eef1f6" }}>
-              <td style={{ padding: "12px 14px", fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 12 }}>{c.batchId}</td>
-              <td style={{ padding: "12px 14px", fontWeight: 600 }}>{c.empName}</td>
-              <td style={{ padding: "12px 14px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#2952cc", fontWeight: 700 }}>{c.confirmation}</td>
-              <td style={{ padding: "12px 14px" }}><StatusBadge type={c.status} /></td>
-              <td style={{ padding: "12px 14px", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{c.submittedAt}</td>
-              <td style={{ padding: "12px 14px", textAlign: "center", fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>{c.expected}</td>
-              <td style={{ padding: "12px 14px", textAlign: "center", fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>{c.confirmed}</td>
-              <td style={{ padding: "12px 14px", textAlign: "center" }}>
-                {c.expected === c.confirmed ? (
-                  <span style={{ color: "#0f9f6e", fontWeight: 700 }}>✓ Match</span>
-                ) : (
-                  <span style={{ color: "#c2410c", fontWeight: 700 }}>✗ Mismatch</span>
-                )}
-              </td>
-              <td style={{ padding: "12px 14px" }}>
-                {c.auditComplete ? (
-                  <button style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #0f9f6e", background: "#e9fbf4", color: "#0f9f6e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Export ↓</button>
-                ) : (
-                  <StatusBadge type="in_progress" label="Pending" />
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
-
-// ─── EXCEPTION REVIEW QUEUE ───────────────────────────────
-
-const ExceptionReviewQueue = ({ exceptions, setExceptions }) => {
-  const [filters, setFilters] = useState({ severity: "all", owner: "all", empId: "all", status: "all" });
-  const [reviewEx, setReviewEx] = useState(null);
-  const [noteInput, setNoteInput] = useState("");
-
-  const getBen = (id) => BENEFICIARIES.find(b => b.id === id);
-  const getEmp = (id) => EMPLOYERS.find(e => e.id === id);
-
-  const openCount    = exceptions.filter(e => e.status !== "resolved").length;
-  const highCount    = exceptions.filter(e => e.severity === "high" && e.status !== "resolved").length;
-  const attCount     = exceptions.filter(e => e.owner === "Attorney" && e.status !== "resolved").length;
-  const waitingCount = exceptions.filter(e => e.status === "waiting_on_client").length;
-
-  const filtered = exceptions.filter(e => {
-    if (filters.severity !== "all" && e.severity !== filters.severity) return false;
-    if (filters.owner !== "all" && e.owner !== filters.owner) return false;
-    if (filters.empId !== "all" && e.empId !== parseInt(filters.empId)) return false;
-    if (filters.status !== "all" && e.status !== filters.status) return false;
-    return true;
-  });
-
-  const updateEx = (id, patch) => {
-    setExceptions(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
-    setReviewEx(prev => prev?.id === id ? { ...prev, ...patch } : prev);
+  const updateException = (id, patch) => {
+    const exception = exceptions.find((e) => e.id === id);
+    setExceptions((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
+    if (patch.status === "Resolved" && exception?.beneficiaryId) {
+      setBeneficiaries((prev) => prev.map((b) => b.id === exception.beneficiaryId ? { ...b, exceptionStatus: "Resolved", attorneyReviewStatus: exception.owner === "Attorney" ? "Approved" : b.attorneyReviewStatus } : b));
+      if (exception.issueType.includes("duplicate")) {
+        setDuplicateRisks((prev) => prev.map((r) => r.beneficiaryId === exception.beneficiaryId ? { ...r, status: "Resolved" } : r));
+      }
+    }
   };
 
-  const openReview = (ex) => {
-    setReviewEx(ex);
-    setNoteInput(ex.notes || "");
-    if (ex.status === "open" && ex.owner === "Attorney") updateEx(ex.id, { status: "in_review" });
+  const openReview = (exception) => {
+    setSelectedExceptionId(exception.id);
+    setNote("");
+    if (exception.status === "Open" && exception.owner === "Attorney") updateException(exception.id, { status: "In Review" });
   };
-
-  const btnStyle = (bg, color) => ({
-    padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-    cursor: "pointer", border: "none", background: bg, color,
-  });
-
-  const getCtaButtons = (ex) => {
-    if (ex.status === "resolved") return <span style={{ color: "#0f9f6e", fontSize: 11, fontWeight: 600 }}>✓ Resolved</span>;
-    const reviewBtn   = <button onClick={() => openReview(ex)} style={btnStyle("#eff4ff", "#2952cc")}>Review</button>;
-    const resolveBtn  = <button onClick={() => updateEx(ex.id, { status: "resolved" })} style={btnStyle("#e9fbf4", "#0f9f6e")}>Mark Resolved</button>;
-    const requestBtn  = <button onClick={() => updateEx(ex.id, { status: "waiting_on_client" })} style={btnStyle("#fff7e8", "#b7791f")}>Request Info</button>;
-    const escalateBtn = <button onClick={() => updateEx(ex.id, { owner: "Attorney", status: "in_review" })} style={btnStyle("#fff1ec", "#c2410c")}>Escalate</button>;
-
-    if (ex.status === "waiting_on_client") return <div style={{ display: "flex", gap: 4 }}>{resolveBtn}</div>;
-    if (ex.status === "in_review") return <div style={{ display: "flex", gap: 4 }}>{reviewBtn}{resolveBtn}</div>;
-    if (ex.owner === "Employer HR" || ex.owner === "Company Admin") return <div style={{ display: "flex", gap: 4 }}>{requestBtn}</div>;
-    if (ex.severity === "high" && ex.owner === "Legal Ops") return <div style={{ display: "flex", gap: 4 }}>{reviewBtn}{escalateBtn}</div>;
-    return <div style={{ display: "flex", gap: 4 }}>{reviewBtn}</div>;
-  };
-
-  const filterDefs = [
-    { key: "severity", options: [{ value: "all", label: "All Severities" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }] },
-    { key: "owner", options: [{ value: "all", label: "All Owners" }, { value: "Attorney", label: "Attorney" }, { value: "Legal Ops", label: "Legal Ops" }, { value: "Employer HR", label: "Employer HR" }, { value: "Company Admin", label: "Company Admin" }] },
-    { key: "empId", options: [{ value: "all", label: "All Clients" }, ...EMPLOYERS.map(e => ({ value: String(e.id), label: e.name }))] },
-    { key: "status", options: [{ value: "all", label: "All Statuses" }, { value: "open", label: "Open" }, { value: "in_review", label: "In Review" }, { value: "waiting_on_client", label: "Waiting on Client" }, { value: "resolved", label: "Resolved" }] },
-  ];
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Exception Review Queue</h2>
-        <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>Flagged issues across all clients requiring attorney or legal ops attention</p>
-      </div>
+      <SectionHeader tab="Review" />
+      <SummaryGrid items={[
+        { label: "Total open exceptions", value: state.openExceptions.length, status: state.openExceptions.length ? "Open" : "Complete" },
+        { label: "High severity", value: state.openExceptions.filter((e) => e.severity === "High").length, status: state.openExceptions.some((e) => e.severity === "High") ? "High" : "Complete" },
+        { label: "Assigned to attorney", value: state.openExceptions.filter((e) => e.owner === "Attorney").length, status: "Required" },
+        { label: "Waiting on client", value: state.openExceptions.filter((e) => e.owner === "Employer HR").length, status: "Pending" },
+      ]} />
 
-      {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
         {[
-          { label: "Open Exceptions",       value: openCount,    color: "#c2410c", bg: "#fff1ec", border: "#f4c8b9" },
-          { label: "High Severity",          value: highCount,    color: "#c2410c", bg: "#fff1ec", border: "#f4c8b9" },
-          { label: "Assigned to Attorney",   value: attCount,     color: "#6d28d9", bg: "#f5f0ff", border: "#e0d4f7" },
-          { label: "Waiting on Client",      value: waitingCount, color: "#2952cc", bg: "#eff4ff", border: "#d8e2ff" },
-        ].map((s, i) => (
-          <div key={i} style={{ background: s.bg, borderRadius: 14, padding: "16px 18px", border: `1px solid ${s.border}` }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace" }}>{s.value}</div>
-            <div style={{ fontSize: 13, color: s.color, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#50627a", textTransform: "uppercase", letterSpacing: "0.04em" }}>Filter:</span>
-        {filterDefs.map(f => (
-          <select key={f.key} value={filters[f.key]} onChange={e => setFilters(prev => ({ ...prev, [f.key]: e.target.value }))}
-            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #dbe3ee", fontSize: 12, color: "#1f2937", background: "#fff", cursor: "pointer" }}>
-            {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          ["severity", ["All", "High", "Medium", "Low"]],
+          ["owner", ["All", "Attorney", "Legal Ops", "Employer HR", "Company Admin"]],
+          ["status", ["All", "Open", "In Review", "Resolved"]],
+        ].map(([key, options]) => (
+          <select key={key} value={filters[key]} onChange={(event) => setFilters((prev) => ({ ...prev, [key]: event.target.value }))} style={selectStyle()}>
+            {options.map((option) => <option key={option} value={option}>{option === "All" ? `All ${key}` : option}</option>)}
           </select>
         ))}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#6b7280" }}>{filtered.length} exception{filtered.length !== 1 ? "s" : ""}</span>
+        <span style={{ marginLeft: "auto", color: "#64748b", fontSize: 12, fontWeight: 700 }}>{filtered.length} shown</span>
       </div>
 
-      {/* Table + review panel */}
-      <div style={{ display: "grid", gridTemplateColumns: reviewEx ? "1fr 380px" : "1fr", gap: 16, alignItems: "start" }}>
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", overflow: "auto", boxShadow: "0 4px 20px rgba(23,43,77,0.06)" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 920 }}>
-            <thead>
-              <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
-                {["ID", "Beneficiary", "Client", "Batch", "Issue Type", "Severity", "Owner", "Status", "Recommended Action", "Action"].map(h => (
-                  <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "#50627a", whiteSpace: "nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
+      <div style={{ display: "grid", gridTemplateColumns: selectedException ? "1fr 360px" : "1fr", gap: 16, alignItems: "start" }}>
+        <Card style={{ overflow: "auto" }}>
+          <table style={tableStyle(1100)}>
+            <thead>{tableHead(["Beneficiary", "Client", "Batch ID", "Issue type", "Severity", "Owner", "Status", "Recommended action", "CTA"])}</thead>
             <tbody>
-              {filtered.map(ex => {
-                const ben = ex.beneficiaryId ? getBen(ex.beneficiaryId) : null;
-                const emp = getEmp(ex.empId);
-                return (
-                  <tr key={ex.id} style={{ borderBottom: "1px solid #eef1f6", background: reviewEx?.id === ex.id ? "#f8fbff" : "transparent" }}>
-                    <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7280" }}>{ex.id}</td>
-                    <td style={{ padding: "10px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{ben ? ben.name : <span style={{ color: "#6b7280" }}>—</span>}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 11 }}>{emp?.name}</td>
-                    <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{ex.batchId || "—"}</td>
-                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{ex.issueType}</td>
-                    <td style={{ padding: "10px 12px" }}><SeverityBadge severity={ex.severity} /></td>
-                    <td style={{ padding: "10px 12px", fontSize: 11 }}>{ex.owner}</td>
-                    <td style={{ padding: "10px 12px" }}><ExStatusPill status={ex.status} /></td>
-                    <td style={{ padding: "10px 12px", fontSize: 11, color: "#6b7280", maxWidth: 200 }}>{ex.recommendedAction}</td>
-                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{getCtaButtons(ex)}</td>
-                  </tr>
-                );
-              })}
+              {filtered.map((exception) => (
+                <tr key={exception.id} style={{ ...rowStyle(), background: selectedExceptionId === exception.id ? "#f8fbff" : "#fff" }}>
+                  <td style={cellStyle(true)}>{exception.beneficiaryId ? getBeneficiaryName(exception.beneficiaryId, beneficiaries) : "-"}</td>
+                  <td style={cellStyle()}>{getClientName(exception.clientId)}</td>
+                  <td style={monoCell()}>{exception.batchId || "-"}</td>
+                  <td style={cellStyle(true)}>{exception.issueType}</td>
+                  <td style={cellStyle()}><Badge value={exception.severity}>{exception.severity}</Badge></td>
+                  <td style={cellStyle()}>{exception.owner}</td>
+                  <td style={cellStyle()}><Badge value={exception.status}>{exception.status}</Badge></td>
+                  <td style={{ ...cellStyle(), maxWidth: 250, color: "#64748b" }}>{exception.recommendedAction}</td>
+                  <td style={cellStyle()}>
+                    {exception.status === "Resolved"
+                      ? <Badge value="Complete">Complete</Badge>
+                      : <button onClick={() => openReview(exception)} style={secondaryButton()}>Review</button>}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-          {filtered.length === 0 && (
-            <div style={{ padding: 48, textAlign: "center", color: "#6b7280", fontSize: 14 }}>No exceptions match the current filters.</div>
-          )}
-        </div>
+        </Card>
 
-        {/* Review panel */}
-        {reviewEx && (() => {
-          const ben = reviewEx.beneficiaryId ? getBen(reviewEx.beneficiaryId) : null;
-          const emp = getEmp(reviewEx.empId);
-          return (
-            <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dbe3ee", padding: 18, boxShadow: "0 4px 20px rgba(23,43,77,0.06)", position: "sticky", top: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7280", marginBottom: 3 }}>{reviewEx.id}</div>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, lineHeight: 1.3 }}>{reviewEx.issueType}</h3>
-                </div>
-                <button onClick={() => setReviewEx(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b7280", padding: 0, lineHeight: 1 }}>✕</button>
+        {selectedException && (
+          <Card style={{ padding: 16, position: "sticky", top: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <div style={{ fontFamily: "'DM Mono', ui-monospace, monospace", color: "#64748b", fontSize: 11 }}>{selectedException.id}</div>
+                <h3 style={{ ...panelTitle(), marginTop: 4 }}>{selectedException.issueType}</h3>
               </div>
-
-              <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-                <SeverityBadge severity={reviewEx.severity} />
-                <ExStatusPill status={reviewEx.status} />
-              </div>
-
-              {ben && (
-                <div style={{ background: "#f8fbff", borderRadius: 10, border: "1px solid #dbe3ee", padding: 12, marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 8 }}>Beneficiary</div>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{ben.name}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px", fontSize: 11, color: "#6b7280" }}>
-                    <div><strong style={{ color: "#1f2937" }}>Passport:</strong> {ben.passport || <span style={{ color: "#c2410c" }}>MISSING</span>}</div>
-                    <div><strong style={{ color: "#1f2937" }}>DOB:</strong> {ben.dob}</div>
-                    <div><strong style={{ color: "#1f2937" }}>COB:</strong> <span style={{ color: ben.cob === "South Korea" || ben.cob === "Japan" ? "#c2410c" : "inherit" }}>{ben.cob}</span></div>
-                    <div><strong style={{ color: "#1f2937" }}>SOC:</strong> {ben.soc}</div>
-                    <div><strong style={{ color: "#1f2937" }}>Wage:</strong> {ben.wage || <span style={{ color: "#c2410c" }}>MISSING</span>}</div>
-                    <div><strong style={{ color: "#1f2937" }}>Location:</strong> {ben.city}, {ben.state}</div>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 4 }}>Client</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{emp?.name}</div>
-                {reviewEx.batchId && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Batch: <span style={{ fontFamily: "'DM Mono', monospace" }}>{reviewEx.batchId}</span></div>}
-              </div>
-
-              <div style={{ marginBottom: 14, padding: 12, borderRadius: 10, background: "#fffcf5", border: "1px solid #f1d8a6" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#b7791f", letterSpacing: "0.04em", marginBottom: 6 }}>Recommended Action</div>
-                <div style={{ fontSize: 12, color: "#1f2937", lineHeight: 1.5 }}>{reviewEx.recommendedAction}</div>
-              </div>
-
-              {reviewEx.notes && (
-                <div style={{ marginBottom: 14, padding: 12, borderRadius: 10, background: "#f7f9fc", border: "1px solid #dbe3ee" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 4 }}>Notes</div>
-                  <div style={{ fontSize: 12, color: "#1f2937", lineHeight: 1.5 }}>{reviewEx.notes}</div>
-                </div>
-              )}
-
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 6 }}>Add Note</div>
-                <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Add a note..."
-                  style={{ width: "100%", minHeight: 72, padding: 10, borderRadius: 8, border: "1px solid #dbe3ee", fontSize: 12, fontFamily: "inherit", resize: "vertical", color: "#1f2937", boxSizing: "border-box" }} />
-                <button onClick={() => updateEx(reviewEx.id, { notes: noteInput })}
-                  style={{ marginTop: 6, padding: "6px 14px", borderRadius: 8, border: "1px solid #dbe3ee", background: "#f7f9fc", color: "#1f2937", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                  Save Note
-                </button>
-              </div>
-
-              {reviewEx.status !== "resolved" ? (
-                <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#50627a", letterSpacing: "0.04em", marginBottom: 2 }}>Actions</div>
-                  <button onClick={() => updateEx(reviewEx.id, { status: "resolved" })}
-                    style={{ padding: "9px 0", borderRadius: 10, border: "none", background: "#e9fbf4", color: "#0f9f6e", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                    Mark Resolved
-                  </button>
-                  {reviewEx.status !== "waiting_on_client" && (
-                    <button onClick={() => updateEx(reviewEx.id, { status: "waiting_on_client" })}
-                      style={{ padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7e8", color: "#b7791f", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                      Request Info from Client
-                    </button>
-                  )}
-                  {reviewEx.owner !== "Attorney" && (
-                    <button onClick={() => updateEx(reviewEx.id, { owner: "Attorney", status: "in_review" })}
-                      style={{ padding: "9px 0", borderRadius: 10, border: "none", background: "#fff1ec", color: "#c2410c", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                      Escalate to Attorney
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 16, padding: 12, borderRadius: 10, background: "#e9fbf4", border: "1px solid #b5ecd7", textAlign: "center" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0f9f6e" }}>✓ Exception Resolved</div>
-                </div>
-              )}
+              <button onClick={() => setSelectedExceptionId(null)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18 }}>x</button>
             </div>
-          );
-        })()}
+            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+              <Badge value={selectedException.severity}>{selectedException.severity}</Badge>
+              <Badge value={selectedException.status}>{selectedException.status}</Badge>
+            </div>
+            <Detail label="Beneficiary" value={selectedException.beneficiaryId ? getBeneficiaryName(selectedException.beneficiaryId, beneficiaries) : "Batch-level issue"} />
+            <Detail label="Client" value={getClientName(selectedException.clientId)} />
+            <Detail label="Source field causing issue" value={selectedException.sourceField} />
+            <Detail label="Suggested next step" value={selectedException.recommendedAction} />
+            <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Notes" style={{ width: "100%", minHeight: 72, boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, fontFamily: "inherit", marginTop: 8 }} />
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+              <button onClick={() => updateException(selectedException.id, { status: "Resolved" })} style={primaryButton()}>Mark Resolved</button>
+              <button onClick={() => updateException(selectedException.id, { owner: "Employer HR", status: "Open" })} style={secondaryButton()}>Request Info</button>
+              <button onClick={() => updateException(selectedException.id, { owner: "Attorney", status: "In Review" })} style={secondaryButton()}>Escalate to Attorney</button>
+              <button onClick={() => {
+                updateException(selectedException.id, { status: "Resolved" });
+                if (selectedException.beneficiaryId) setBeneficiaries((prev) => prev.map((b) => b.id === selectedException.beneficiaryId ? { ...b, filingStatus: "Not Started", exceptionStatus: "Resolved" } : b));
+              }} style={secondaryButton()}>Exclude from Filing</button>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );
-};
+}
 
-// ─── MAIN APP ──────────────────────────────────────────────
+function FileTab({ state, batches, setBatches, setActiveTab }) {
+  const [selectedBatchId, setSelectedBatchId] = useState(state.clientBatches[0]?.id || null);
+  const selectedBatch = batches.find((b) => b.id === selectedBatchId && state.clientBatches.some((scoped) => scoped.id === b.id));
 
-export default function AlmaPrototype() {
-  const [screen, setScreen] = useState("dashboard");
-  const [selectedEmployer, setSelectedEmployer] = useState(null);
-  const [exceptions, setExceptions] = useState(EXCEPTIONS_INIT);
-
-  const openExCount = exceptions.filter(e => e.status !== "resolved").length;
-
-  const nav = [
-    { id: "dashboard",   label: "Employers",       icon: "◫" },
-    { id: "datahub",     label: "Data Hub",         icon: "◰" },
-    { id: "exceptions",  label: "Exception Queue",  icon: "⚑" },
-    { id: "filing",      label: "Filing Control",   icon: "◳" },
-    { id: "confirmation",label: "Confirmations",    icon: "◲" },
-  ];
+  const updateBatch = (id, patch) => {
+    setBatches((prev) => prev.map((batch) => batch.id === id ? { ...batch, ...patch } : batch));
+  };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", background: "#f4f6fa" }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <div>
+      <SectionHeader tab="File" />
+      <Card style={{ overflow: "auto", marginBottom: 16 }}>
+        <table style={tableStyle(1200)}>
+          <thead>{tableHead(["Client", "USCIS batch ID", "Beneficiary count", "Batch status", "Attorney review", "G-28", "Company admin approval", "Payment", "Submission", "Confirmation", "Next action"])}</thead>
+          <tbody>
+            {state.clientBatches.map((batch) => (
+              <tr key={batch.id} onClick={() => setSelectedBatchId(batch.id)} style={{ ...rowStyle(), cursor: "pointer", background: selectedBatchId === batch.id ? "#f8fbff" : "#fff" }}>
+                <td style={cellStyle(true)}>{getClientName(batch.clientId)}</td>
+                <td style={monoCell()}>{batch.id}</td>
+                <td style={monoCell()}>{batch.beneficiaryCount}</td>
+                <td style={cellStyle()}><Badge value={batch.status}>{batch.status}</Badge></td>
+                <td style={cellStyle()}><Badge value={batch.attorneyReviewStatus}>{batch.attorneyReviewStatus}</Badge></td>
+                <td style={cellStyle()}><Badge value={batch.g28Status}>{batch.g28Status}</Badge></td>
+                <td style={cellStyle()}><Badge value={batch.companyAdminApprovalStatus}>{batch.companyAdminApprovalStatus}</Badge></td>
+                <td style={cellStyle()}><Badge value={batch.paymentStatus}>{batch.paymentStatus}</Badge></td>
+                <td style={cellStyle()}><Badge value={batch.submissionStatus}>{batch.submissionStatus}</Badge></td>
+                <td style={cellStyle()}><Badge value={batch.confirmationCaptureStatus}>{batch.confirmationCaptureStatus}</Badge></td>
+                <td style={{ ...cellStyle(), color: "#64748b", maxWidth: 220 }}>{batch.nextAction}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
 
-      {/* Sidebar */}
-      <div style={{ width: 220, background: "#0f1729", color: "#fff", padding: "20px 0", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-        <div style={{ padding: "0 20px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em" }}>alma</div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>H-1B Registration Platform</div>
-        </div>
+      {selectedBatch && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
+          <Card style={{ padding: 16 }}>
+            <h3 style={panelTitle()}>{selectedBatch.id} Filing Readiness Checklist</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              {[
+                ["USCIS upload complete", selectedBatch.status !== "Draft created" && selectedBatch.status !== "Needs attorney review"],
+                ["Batch count reconciled", true],
+                ["Duplicate check complete", state.unresolvedHighDuplicates.length === 0],
+                ["Attorney review complete", selectedBatch.attorneyReviewStatus === "Approved"],
+                ["G-28 complete", selectedBatch.g28Status === "Complete"],
+                ["Company admin accepted", selectedBatch.companyAdminApprovalStatus === "Accepted"],
+                ["Fee total calculated", !!selectedBatch.feeTotal],
+                ["Payment complete", selectedBatch.paymentStatus === "Complete"],
+                ["USCIS submitted", selectedBatch.submissionStatus === "Submitted"],
+              ].map(([label, done]) => (
+                <div key={label} style={{ display: "flex", gap: 8, alignItems: "center", padding: 9, borderRadius: 8, border: "1px solid #dbe3ee", background: done ? "#e9fbf4" : "#f7f9fc", color: done ? "#0f7f5f" : "#64748b", fontSize: 12, fontWeight: 800 }}>
+                  <span>{done ? "OK" : "--"}</span>
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: "#f8fbff", border: "1px solid #dbe3ee", color: "#475569", fontSize: 13 }}>
+              Final payment and submission are completed in USCIS/Pay.gov.
+            </div>
+          </Card>
 
-        <div style={{ padding: "16px 10px", flex: 1 }}>
-          {nav.map(n => (
-            <button key={n.id} onClick={() => setScreen(n.id)} style={{
-              display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10,
-              border: "none", background: screen === n.id ? "rgba(255,255,255,0.1)" : "transparent",
-              color: screen === n.id ? "#fff" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              textAlign: "left", marginBottom: 4, transition: "all 0.15s", fontFamily: "inherit",
-            }}>
-              <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{n.icon}</span>
-              <span style={{ flex: 1 }}>{n.label}</span>
-              {n.id === "exceptions" && openExCount > 0 && (
-                <span style={{ background: "#c2410c", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 700, padding: "1px 6px", lineHeight: "16px" }}>
-                  {openExCount}
-                </span>
+          <Card style={{ padding: 16 }}>
+            <h3 style={panelTitle()}>Company Admin Approval</h3>
+            <Detail label="Sent to admin at" value={selectedBatch.sentToAdminAt || "Not sent"} />
+            <Detail label="Time pending" value={selectedBatch.companyAdminApprovalStatus === "Pending" ? "18 hours" : "-"} />
+            <Detail label="Admin contact" value={selectedBatch.adminContact} />
+            <Detail label="Deadline risk" value={selectedBatch.companyAdminApprovalStatus === "Pending" ? "Reminder recommended today" : "No current approval risk"} />
+            {selectedBatch.companyAdminApprovalStatus === "Rejected" && (
+              <div style={{ padding: 10, borderRadius: 8, background: "#fff1ec", border: "1px solid #f4c8b9", color: "#b43214", fontSize: 12, fontWeight: 800, marginBottom: 10 }}>
+                Rejected by company admin because petitioner entity did not match the selected account.
+              </div>
+            )}
+            <div style={{ display: "grid", gap: 8 }}>
+              {selectedBatch.companyAdminApprovalStatus === "Pending" && <button style={secondaryButton()}>Send Reminder</button>}
+              {selectedBatch.companyAdminApprovalStatus === "Rejected" && <button style={secondaryButton()}>Edit Batch</button>}
+              {selectedBatch.companyAdminApprovalStatus === "Rejected" && <button style={secondaryButton()}>Resend for Approval</button>}
+              {selectedBatch.companyAdminApprovalStatus === "Accepted" && selectedBatch.paymentStatus !== "Complete" && (
+                <button onClick={() => updateBatch(selectedBatch.id, { paymentStatus: "Complete", status: "Payment complete", nextAction: "Submit registrations in USCIS." })} style={primaryButton()}>
+                  Complete Pay.gov Payment
+                </button>
               )}
+              {selectedBatch.paymentStatus === "Complete" && selectedBatch.submissionStatus !== "Submitted" && (
+                <button onClick={() => updateBatch(selectedBatch.id, { submissionStatus: "Submitted", status: "Submitted", confirmationCaptureStatus: "Missing", nextAction: "Capture confirmation numbers." })} style={primaryButton()}>
+                  Mark Submitted
+                </button>
+              )}
+              {selectedBatch.submissionStatus === "Submitted" && <button onClick={() => setActiveTab("Track")} style={primaryButton()}>Capture Confirmations</button>}
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrackTab({ state, beneficiaries, setBeneficiaries }) {
+  const submitted = state.clientBeneficiaries.filter((b) => b.filingStatus === "Submitted");
+  const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState(submitted[0]?.id || null);
+  const [confirmationInput, setConfirmationInput] = useState("");
+  const selectedBeneficiary = beneficiaries.find((b) => b.id === selectedBeneficiaryId);
+
+  const updateBeneficiary = (id, patch) => {
+    setBeneficiaries((prev) => prev.map((beneficiary) => beneficiary.id === id ? { ...beneficiary, ...patch } : beneficiary));
+  };
+
+  return (
+    <div>
+      <SectionHeader tab="Track" />
+      <SummaryGrid items={[
+        { label: "Submitted registrations", value: submitted.length, status: "Submitted" },
+        { label: "Confirmations captured", value: submitted.filter((b) => b.confirmationStatus === "Captured").length, status: "Captured" },
+        { label: "Missing confirmations", value: submitted.filter((b) => b.confirmationStatus === "Missing").length, status: submitted.some((b) => b.confirmationStatus === "Missing") ? "Missing" : "Complete" },
+        { label: "Audit packets complete", value: submitted.filter((b) => b.auditStatus === "Complete").length, status: state.auditIncomplete.length ? "At Risk" : "Complete" },
+      ]} />
+
+      <div style={{ display: "grid", gridTemplateColumns: selectedBeneficiary ? "1fr 340px" : "1fr", gap: 16, alignItems: "start" }}>
+        <Card style={{ overflow: "auto" }}>
+          <table style={tableStyle(1080)}>
+            <thead>{tableHead(["Beneficiary", "Client", "Batch ID", "USCIS confirmation number", "USCIS status", "Submitted timestamp", "Payment status", "Audit status", "Action"])}</thead>
+            <tbody>
+              {submitted.map((beneficiary) => (
+                <tr key={beneficiary.id} style={{ ...rowStyle(), background: selectedBeneficiaryId === beneficiary.id ? "#f8fbff" : "#fff" }}>
+                  <td style={cellStyle(true)}>{beneficiary.name}</td>
+                  <td style={cellStyle()}>{getClientName(beneficiary.clientId)}</td>
+                  <td style={monoCell()}>{beneficiary.batchId}</td>
+                  <td style={monoCell()}>{beneficiary.confirmationNumber || "Missing"}</td>
+                  <td style={cellStyle()}><Badge value={beneficiary.confirmationStatus === "Missing" ? "Missing" : beneficiary.uscisStatus}>{beneficiary.uscisStatus}</Badge></td>
+                  <td style={monoCell()}>{beneficiary.submittedAt}</td>
+                  <td style={cellStyle()}><Badge value="Complete">Complete</Badge></td>
+                  <td style={cellStyle()}><Badge value={beneficiary.auditStatus}>{beneficiary.auditStatus}</Badge></td>
+                  <td style={cellStyle()}><button onClick={() => setSelectedBeneficiaryId(beneficiary.id)} style={secondaryButton()}>View Audit Timeline</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+
+        {selectedBeneficiary && (
+          <Card style={{ padding: 16, position: "sticky", top: 16 }}>
+            <h3 style={panelTitle()}>{selectedBeneficiary.name}</h3>
+            <Detail label="Batch" value={selectedBeneficiary.batchId} />
+            <Detail label="Confirmation status" value={selectedBeneficiary.confirmationStatus} />
+            <div style={{ display: "flex", gap: 8, margin: "8px 0 12px" }}>
+              <input value={confirmationInput} onChange={(event) => setConfirmationInput(event.target.value)} placeholder="Confirmation number" style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 10px" }} />
+              <button onClick={() => {
+                if (!confirmationInput.trim()) return;
+                updateBeneficiary(selectedBeneficiary.id, { confirmationStatus: "Captured", confirmationNumber: confirmationInput.trim(), uscisStatus: "Submitted" });
+                setConfirmationInput("");
+              }} style={primaryButton()}>Save</button>
+            </div>
+            <button onClick={() => updateBeneficiary(selectedBeneficiary.id, { auditStatus: "Complete" })} style={{ ...secondaryButton(), width: "100%", marginBottom: 12 }}>
+              Mark Audit Packet Complete
             </button>
-          ))}
-        </div>
-
-        <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
-          FY2027 Cap Season<br />Prototype v1.0
-        </div>
+            <button style={{ ...secondaryButton(), width: "100%", marginBottom: 12 }}>Download Audit Packet</button>
+            <h4 style={{ ...panelTitle(), fontSize: 12 }}>Audit Timeline</h4>
+            <div style={{ display: "grid", gap: 7 }}>
+              {auditEvents.map((event, index) => {
+                const completeThrough = selectedBeneficiary.confirmationStatus === "Captured" ? auditEvents.length : auditEvents.length - 1;
+                const done = index < completeThrough;
+                return (
+                  <div key={event} style={{ display: "flex", gap: 8, alignItems: "center", color: done ? "#0f7f5f" : "#64748b", fontSize: 12, fontWeight: 800 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done ? "#e9fbf4" : "#f7f9fc", border: `1px solid ${done ? "#b5ecd7" : "#dbe3ee"}` }}>{done ? "OK" : "--"}</span>
+                    {event}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
       </div>
+    </div>
+  );
+}
 
-      {/* Main content */}
-      <div style={{ flex: 1, padding: 28, overflow: "auto" }}>
-        {screen === "dashboard" && (
-          <EmployerDashboard onSelectEmployer={(emp) => { setSelectedEmployer(emp); setScreen("datahub"); }} exceptions={exceptions} />
-        )}
-        {screen === "datahub" && (
-          <DataHub employer={selectedEmployer || EMPLOYERS[0]} onBack={() => setScreen("dashboard")} exceptions={exceptions} />
-        )}
-        {screen === "exceptions" && (
-          <ExceptionReviewQueue exceptions={exceptions} setExceptions={setExceptions} />
-        )}
-        {screen === "filing" && <FilingControlCenter exceptions={exceptions} />}
-        {screen === "confirmation" && <ConfirmationTracker />}
+function Detail({ label, value }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
+      <div style={{ marginTop: 3, color: "#172033", fontSize: 13, fontWeight: 800, lineHeight: 1.35 }}>{value}</div>
+    </div>
+  );
+}
+
+function selectStyle() {
+  return { padding: "7px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", color: "#172033", fontWeight: 700, fontFamily: "inherit" };
+}
+
+function tableStyle(minWidth) {
+  return { width: "100%", minWidth, borderCollapse: "collapse", fontSize: 12 };
+}
+
+function tableHead(headers) {
+  return (
+    <tr style={{ background: "#f8fbff", borderBottom: "1px solid #dbe3ee" }}>
+      {headers.map((header) => (
+        <th key={header} style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, color: "#50627a", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{header}</th>
+      ))}
+    </tr>
+  );
+}
+
+function rowStyle() {
+  return { borderBottom: "1px solid #eef2f7" };
+}
+
+function cellStyle(bold = false) {
+  return { padding: "11px 12px", color: "#172033", fontWeight: bold ? 800 : 600, verticalAlign: "top" };
+}
+
+function monoCell() {
+  return { ...cellStyle(), fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 11 };
+}
+
+function panelTitle() {
+  return { margin: "0 0 12px", color: "#172033", fontSize: 15, fontWeight: 900 };
+}
+
+export default function AlmaPrototype() {
+  const [activeTab, setActiveTab] = useState("Prepare");
+  const [selectedClientId, setSelectedClientId] = useState("acme");
+  const [beneficiaries, setBeneficiaries] = useState(initialBeneficiaries);
+  const [exceptions, setExceptions] = useState(initialExceptions);
+  const [duplicateRisks, setDuplicateRisks] = useState(initialDuplicateRisks);
+  const [batches, setBatches] = useState(initialBatches);
+  const [templateGeneratedByClient, setTemplateGeneratedByClient] = useState({ acme: false, meridian: true, novabridge: true });
+
+  const selectedClient = clients.find((client) => client.id === selectedClientId) || clients[0];
+  const state = useMemo(() => getClientState({
+    clientId: selectedClientId,
+    beneficiaries,
+    exceptions,
+    duplicateRisks,
+    batches,
+    templateGenerated: templateGeneratedByClient[selectedClientId],
+  }), [selectedClientId, beneficiaries, exceptions, duplicateRisks, batches, templateGeneratedByClient]);
+
+  const setTemplateGenerated = (value) => {
+    setTemplateGeneratedByClient((prev) => ({ ...prev, [selectedClientId]: value }));
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f4f6fa", fontFamily: "'DM Sans', system-ui, sans-serif", color: "#172033" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+      <div style={{ maxWidth: 1380, margin: "0 auto", padding: 24 }}>
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.05em" }}>alma</div>
+            <h1 style={{ margin: "2px 0 0", color: "#172033", fontSize: 30, lineHeight: 1.1, letterSpacing: 0, fontWeight: 900 }}>Alma H-1B Filing Cockpit</h1>
+          </div>
+          <div style={{ color: "#64748b", fontSize: 12, fontWeight: 800 }}>FY2027 Cap Season</div>
+        </header>
+
+        <CommandCenter selectedClientId={selectedClientId} setSelectedClientId={(id) => { setSelectedClientId(id); setActiveTab("Prepare"); }} state={state} setActiveTab={setActiveTab} />
+        <WorkflowBar stageStatuses={state.stageStatuses} activeTab={activeTab} setActiveTab={setActiveTab} />
+
+        <Card style={{ padding: 16 }}>
+          <div style={{ display: "flex", gap: 8, borderBottom: "1px solid #e2e8f0", margin: "-2px -2px 16px", padding: "0 2px 12px" }}>
+            {["Prepare", "Review", "File", "Track"].map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                border: `1px solid ${activeTab === tab ? "#2952cc" : "#dbe3ee"}`,
+                background: activeTab === tab ? "#eff4ff" : "#fff",
+                color: activeTab === tab ? "#2952cc" : "#475569",
+                borderRadius: 8,
+                padding: "9px 14px",
+                fontWeight: 900,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}>
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "Prepare" && (
+            <PrepareTab
+              client={selectedClient}
+              state={state}
+              templateGenerated={templateGeneratedByClient[selectedClientId]}
+              setTemplateGenerated={setTemplateGenerated}
+              setActiveTab={setActiveTab}
+            />
+          )}
+          {activeTab === "Review" && (
+            <ReviewTab
+              state={state}
+              exceptions={exceptions}
+              setExceptions={setExceptions}
+              setDuplicateRisks={setDuplicateRisks}
+              beneficiaries={beneficiaries}
+              setBeneficiaries={setBeneficiaries}
+            />
+          )}
+          {activeTab === "File" && (
+            <FileTab state={state} batches={batches} setBatches={setBatches} setActiveTab={setActiveTab} />
+          )}
+          {activeTab === "Track" && (
+            <TrackTab state={state} beneficiaries={beneficiaries} setBeneficiaries={setBeneficiaries} />
+          )}
+        </Card>
       </div>
     </div>
   );
