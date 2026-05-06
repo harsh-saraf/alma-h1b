@@ -406,6 +406,123 @@ function styleForStatus(value) {
   return tone.gray;
 }
 
+// --- ROLE SYSTEM ---
+
+const ROLES = ["Legal Ops", "Attorney", "HR"];
+
+const roleColors = {
+  "Legal Ops": { bg: "#eff4ff", color: "#2952cc", border: "#d8e2ff" },
+  "Attorney": { bg: "#f5f0ff", color: "#6d28d9", border: "#ddd6fe" },
+  "HR": { bg: "#e9fbf4", color: "#0f7f5f", border: "#b5ecd7" },
+};
+
+function canAct(role, action, context = {}) {
+  switch (action) {
+    case "resolve_exception": {
+      const { exception, note } = context;
+      if (exception.owner === "Attorney" && role !== "Attorney")
+        return { allowed: false, reason: "Only the assigned attorney can resolve this exception. Escalate or use Request Info instead." };
+      if (exception.severity === "High" && role === "HR")
+        return { allowed: false, reason: "High-severity exceptions require Attorney or Legal Ops sign-off." };
+      if (exception.owner === "Attorney" && !note?.trim())
+        return { allowed: false, reason: "A resolution note is required before closing an attorney-reviewed exception." };
+      return { allowed: true };
+    }
+    case "generate_template": {
+      if (role === "HR")
+        return { allowed: false, reason: "Template generation is restricted to Legal Ops." };
+      if (context.blockers > 0)
+        return { allowed: false, reason: `${context.blockers} blocker${context.blockers === 1 ? "" : "s"} must be resolved before generating the template.` };
+      return { allowed: true };
+    }
+    case "mark_submitted": {
+      if (role !== "Legal Ops")
+        return { allowed: false, reason: "Only Legal Ops can mark a batch as submitted." };
+      if (!context.checklistComplete) {
+        const blocked = context.blockedItems || [];
+        const itemText = blocked.length <= 3 ? blocked.join("; ") : `${blocked.length} items`;
+        return { allowed: false, reason: `Pre-submission checklist incomplete: ${itemText}.` };
+      }
+      return { allowed: true };
+    }
+    case "send_for_approval": {
+      const { batch } = context;
+      if (role !== "Legal Ops")
+        return { allowed: false, reason: "Only Legal Ops can send batches for company admin approval." };
+      if (batch.attorneyReviewStatus !== "Approved")
+        return { allowed: false, reason: "Attorney review must be approved before sending to company admin." };
+      if (batch.g28Status !== "Complete")
+        return { allowed: false, reason: "G-28 must be completed before sending to company admin." };
+      return { allowed: true };
+    }
+    case "exclude_from_filing": {
+      if (role === "HR")
+        return { allowed: false, reason: "HR cannot exclude beneficiaries from filing. Contact your Legal Ops owner." };
+      return { allowed: true };
+    }
+    case "escalate_to_attorney": {
+      if (role === "HR")
+        return { allowed: false, reason: "HR cannot escalate exceptions directly. Contact your Legal Ops owner." };
+      return { allowed: true };
+    }
+    case "capture_confirmation": {
+      if (role === "HR")
+        return { allowed: false, reason: "Confirmation capture is restricted to Legal Ops." };
+      return { allowed: true };
+    }
+    default:
+      return { allowed: true };
+  }
+}
+
+function GateMessage({ reason }) {
+  return (
+    <div style={{
+      marginTop: 6,
+      padding: "6px 9px",
+      borderRadius: 7,
+      background: "#fff1ec",
+      border: "1px solid #f4c8b9",
+      color: "#b43214",
+      fontSize: 11,
+      fontWeight: 700,
+      lineHeight: 1.4,
+    }}>
+      {reason}
+    </div>
+  );
+}
+
+function ConfirmModal({ message, detail, confirmLabel = "Confirm", danger = false, onConfirm, onCancel }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0,
+      background: "rgba(15,23,42,0.45)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: 24,
+        maxWidth: 420, width: "90%",
+        boxShadow: "0 24px 64px rgba(15,23,42,0.2)",
+        border: "1px solid #dbe3ee",
+      }}>
+        <h3 style={{ margin: "0 0 8px", fontSize: 16, color: "#172033", fontWeight: 900 }}>Confirm action</h3>
+        <p style={{ margin: "0 0 6px", fontSize: 14, color: "#172033", fontWeight: 700, lineHeight: 1.4 }}>{message}</p>
+        {detail && <p style={{ margin: "0 0 20px", fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>{detail}</p>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={secondaryButton()}>Cancel</button>
+          <button onClick={onConfirm} style={{ ...primaryButton(), background: danger ? "#b43214" : "#2952cc" }}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- UI PRIMITIVES ---
+
 function Badge({ children, value }) {
   const s = styleForStatus(value || children);
   return (
@@ -642,16 +759,16 @@ function primaryButton(disabled = false) {
   };
 }
 
-function secondaryButton() {
+function secondaryButton(disabled = false) {
   return {
     border: "1px solid #cbd5e1",
     borderRadius: 8,
     padding: "8px 12px",
-    background: "#fff",
-    color: "#172033",
+    background: disabled ? "#f7f9fc" : "#fff",
+    color: disabled ? "#94a3b8" : "#172033",
     fontSize: 12,
     fontWeight: 800,
-    cursor: "pointer",
+    cursor: disabled ? "not-allowed" : "pointer",
     whiteSpace: "nowrap",
     fontFamily: "inherit",
   };
@@ -682,7 +799,7 @@ function SummaryGrid({ items }) {
   );
 }
 
-function PrepareTab({ client, state, templateGenerated, setTemplateGenerated, setActiveTab }) {
+function PrepareTab({ client, state, templateGenerated, setTemplateGenerated, setActiveTab, currentRole }) {
   const [expandedRisk, setExpandedRisk] = useState(null);
   const blockers = state.requiredDataIssues.length + state.unresolvedHighDuplicates.length + state.openExceptions.filter((e) => e.severity === "High").length;
   const templateStatus = templateGenerated ? "Generated" : blockers > 0 ? "Not Ready" : "Ready";
@@ -692,6 +809,7 @@ function PrepareTab({ client, state, templateGenerated, setTemplateGenerated, se
     pending: state.clientDuplicateRisks.filter((r) => r.status !== "Resolved").length,
     resolved: state.clientDuplicateRisks.filter((r) => r.status === "Resolved").length,
   };
+  const templateGate = canAct(currentRole, "generate_template", { blockers });
 
   return (
     <div>
@@ -788,9 +906,14 @@ function PrepareTab({ client, state, templateGenerated, setTemplateGenerated, se
             <div style={{ padding: 10, borderRadius: 8, background: blockers ? "#fff1ec" : "#e9fbf4", border: `1px solid ${blockers ? "#f4c8b9" : "#b5ecd7"}`, color: blockers ? "#b43214" : "#0f7f5f", fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
               {blockers ? state.nextAction.text : "All required data is complete. Generate USCIS template."}
             </div>
-            <button disabled={blockers > 0} onClick={() => setTemplateGenerated(true)} style={{ ...primaryButton(blockers > 0), width: "100%" }}>
+            <button
+              disabled={!templateGate.allowed}
+              onClick={() => templateGate.allowed && setTemplateGenerated(true)}
+              style={{ ...primaryButton(!templateGate.allowed), width: "100%" }}
+            >
               Generate USCIS Bulk Upload Template
             </button>
+            {!templateGate.allowed && currentRole === "HR" && <GateMessage reason={templateGate.reason} />}
           </Card>
         </div>
       </div>
@@ -798,7 +921,7 @@ function PrepareTab({ client, state, templateGenerated, setTemplateGenerated, se
   );
 }
 
-function ReviewTab({ state, exceptions, setExceptions, setDuplicateRisks, beneficiaries, setBeneficiaries }) {
+function ReviewTab({ state, exceptions, setExceptions, setDuplicateRisks, beneficiaries, setBeneficiaries, currentRole, openConfirm }) {
   const [filters, setFilters] = useState({ severity: "All", owner: "All", status: "All" });
   const [selectedExceptionId, setSelectedExceptionId] = useState(null);
   const [note, setNote] = useState("");
@@ -826,6 +949,10 @@ function ReviewTab({ state, exceptions, setExceptions, setDuplicateRisks, benefi
     setNote("");
     if (exception.status === "Open" && exception.owner === "Attorney") updateException(exception.id, { status: "In Review" });
   };
+
+  const resolveGate = selectedException ? canAct(currentRole, "resolve_exception", { exception: selectedException, note }) : null;
+  const escalateGate = selectedException ? canAct(currentRole, "escalate_to_attorney", {}) : null;
+  const excludeGate = selectedException ? canAct(currentRole, "exclude_from_filing", {}) : null;
 
   return (
     <div>
@@ -883,7 +1010,7 @@ function ReviewTab({ state, exceptions, setExceptions, setDuplicateRisks, benefi
                 <div style={{ fontFamily: "'DM Mono', ui-monospace, monospace", color: "#64748b", fontSize: 11 }}>{selectedException.id}</div>
                 <h3 style={{ ...panelTitle(), marginTop: 4 }}>{selectedException.issueType}</h3>
               </div>
-              <button onClick={() => setSelectedExceptionId(null)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18 }}>x</button>
+              <button onClick={() => setSelectedExceptionId(null)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18, color: "#64748b" }}>✕</button>
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
               <Badge value={selectedException.severity}>{selectedException.severity}</Badge>
@@ -893,15 +1020,73 @@ function ReviewTab({ state, exceptions, setExceptions, setDuplicateRisks, benefi
             <Detail label="Client" value={getClientName(selectedException.clientId)} />
             <Detail label="Source field causing issue" value={selectedException.sourceField} />
             <Detail label="Suggested next step" value={selectedException.recommendedAction} />
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Notes" style={{ width: "100%", minHeight: 72, boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, fontFamily: "inherit", marginTop: 8 }} />
+            <textarea
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={selectedException.owner === "Attorney" ? "Resolution note (required for attorney exceptions)…" : "Notes"}
+              style={{ width: "100%", minHeight: 72, boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, fontFamily: "inherit", marginTop: 8 }}
+            />
+            {selectedException.owner === "Attorney" && !note.trim() && (
+              <div style={{ fontSize: 11, color: "#a15c00", fontWeight: 700, marginTop: 4 }}>
+                Note required — attorney exceptions must have a written resolution rationale.
+              </div>
+            )}
             <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-              <button onClick={() => updateException(selectedException.id, { status: "Resolved" })} style={primaryButton()}>Mark Resolved</button>
-              <button onClick={() => updateException(selectedException.id, { owner: "Employer HR", status: "Open" })} style={secondaryButton()}>Request Info</button>
-              <button onClick={() => updateException(selectedException.id, { owner: "Attorney", status: "In Review" })} style={secondaryButton()}>Escalate to Attorney</button>
-              <button onClick={() => {
-                updateException(selectedException.id, { status: "Resolved" });
-                if (selectedException.beneficiaryId) setBeneficiaries((prev) => prev.map((b) => b.id === selectedException.beneficiaryId ? { ...b, filingStatus: "Not Started", exceptionStatus: "Resolved" } : b));
-              }} style={secondaryButton()}>Exclude from Filing</button>
+              <div>
+                <button
+                  disabled={!resolveGate.allowed}
+                  onClick={() => resolveGate.allowed && updateException(selectedException.id, { status: "Resolved" })}
+                  style={{ ...primaryButton(!resolveGate.allowed), width: "100%" }}
+                >
+                  Mark Resolved
+                </button>
+                {!resolveGate.allowed && <GateMessage reason={resolveGate.reason} />}
+              </div>
+
+              <button
+                onClick={() => updateException(selectedException.id, { owner: "Employer HR", status: "Open" })}
+                style={secondaryButton()}
+              >
+                Request Info from HR
+              </button>
+
+              <div>
+                <button
+                  disabled={!escalateGate.allowed}
+                  onClick={() => escalateGate.allowed && updateException(selectedException.id, { owner: "Attorney", status: "In Review" })}
+                  style={secondaryButton(!escalateGate.allowed)}
+                >
+                  Escalate to Attorney
+                </button>
+                {!escalateGate.allowed && <GateMessage reason={escalateGate.reason} />}
+              </div>
+
+              <div>
+                <button
+                  disabled={!excludeGate.allowed}
+                  onClick={() => {
+                    if (!excludeGate.allowed) return;
+                    const name = selectedException.beneficiaryId
+                      ? getBeneficiaryName(selectedException.beneficiaryId, beneficiaries)
+                      : "this beneficiary";
+                    openConfirm(
+                      `Exclude ${name} from filing?`,
+                      "This removes them from the current batch. The record is retained but they will not be submitted to USCIS.",
+                      () => {
+                        updateException(selectedException.id, { status: "Resolved" });
+                        if (selectedException.beneficiaryId)
+                          setBeneficiaries((prev) => prev.map((b) => b.id === selectedException.beneficiaryId ? { ...b, filingStatus: "Not Started", exceptionStatus: "Resolved" } : b));
+                      },
+                      "Exclude from Filing",
+                      true
+                    );
+                  }}
+                  style={secondaryButton(!excludeGate.allowed)}
+                >
+                  Exclude from Filing
+                </button>
+                {!excludeGate.allowed && <GateMessage reason={excludeGate.reason} />}
+              </div>
             </div>
           </Card>
         )}
@@ -910,13 +1095,32 @@ function ReviewTab({ state, exceptions, setExceptions, setDuplicateRisks, benefi
   );
 }
 
-function FileTab({ state, batches, setBatches, setActiveTab }) {
+function FileTab({ state, batches, setBatches, setActiveTab, currentRole, openConfirm }) {
   const [selectedBatchId, setSelectedBatchId] = useState(state.clientBatches[0]?.id || null);
   const selectedBatch = batches.find((b) => b.id === selectedBatchId && state.clientBatches.some((scoped) => scoped.id === b.id));
 
   const updateBatch = (id, patch) => {
     setBatches((prev) => prev.map((batch) => batch.id === id ? { ...batch, ...patch } : batch));
   };
+
+  const checklistItems = selectedBatch ? [
+    ["USCIS upload complete", selectedBatch.status !== "Draft created" && selectedBatch.status !== "Needs attorney review"],
+    ["Batch count reconciled", true],
+    ["Duplicate check complete", state.unresolvedHighDuplicates.length === 0],
+    ["Attorney review complete", selectedBatch.attorneyReviewStatus === "Approved"],
+    ["G-28 complete", selectedBatch.g28Status === "Complete"],
+    ["Company admin accepted", selectedBatch.companyAdminApprovalStatus === "Accepted"],
+    ["Fee total calculated", !!selectedBatch.feeTotal],
+    ["Payment complete", selectedBatch.paymentStatus === "Complete"],
+    ["USCIS submitted", selectedBatch.submissionStatus === "Submitted"],
+  ] : [];
+
+  const preSubmitItems = checklistItems.filter(([label]) => label !== "USCIS submitted");
+  const blockedChecklistItems = preSubmitItems.filter(([, done]) => !done).map(([label]) => label);
+  const checklistComplete = blockedChecklistItems.length === 0;
+
+  const submitGate = selectedBatch ? canAct(currentRole, "mark_submitted", { checklistComplete, blockedItems: blockedChecklistItems }) : null;
+  const sendApprovalGate = selectedBatch ? canAct(currentRole, "send_for_approval", { batch: selectedBatch }) : null;
 
   return (
     <div>
@@ -949,19 +1153,9 @@ function FileTab({ state, batches, setBatches, setActiveTab }) {
           <Card style={{ padding: 16 }}>
             <h3 style={panelTitle()}>{selectedBatch.id} Filing Readiness Checklist</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-              {[
-                ["USCIS upload complete", selectedBatch.status !== "Draft created" && selectedBatch.status !== "Needs attorney review"],
-                ["Batch count reconciled", true],
-                ["Duplicate check complete", state.unresolvedHighDuplicates.length === 0],
-                ["Attorney review complete", selectedBatch.attorneyReviewStatus === "Approved"],
-                ["G-28 complete", selectedBatch.g28Status === "Complete"],
-                ["Company admin accepted", selectedBatch.companyAdminApprovalStatus === "Accepted"],
-                ["Fee total calculated", !!selectedBatch.feeTotal],
-                ["Payment complete", selectedBatch.paymentStatus === "Complete"],
-                ["USCIS submitted", selectedBatch.submissionStatus === "Submitted"],
-              ].map(([label, done]) => (
+              {checklistItems.map(([label, done]) => (
                 <div key={label} style={{ display: "flex", gap: 8, alignItems: "center", padding: 9, borderRadius: 8, border: "1px solid #dbe3ee", background: done ? "#e9fbf4" : "#f7f9fc", color: done ? "#0f7f5f" : "#64748b", fontSize: 12, fontWeight: 800 }}>
-                  <span>{done ? "OK" : "--"}</span>
+                  <span>{done ? "✓" : "—"}</span>
                   <span>{label}</span>
                 </div>
               ))}
@@ -983,6 +1177,31 @@ function FileTab({ state, batches, setBatches, setActiveTab }) {
               </div>
             )}
             <div style={{ display: "grid", gap: 8 }}>
+              {selectedBatch.companyAdminApprovalStatus === "Not Sent" && (
+                <div>
+                  <button
+                    disabled={!sendApprovalGate.allowed}
+                    onClick={() => {
+                      if (!sendApprovalGate.allowed) return;
+                      openConfirm(
+                        `Send ${selectedBatch.id} to ${selectedBatch.adminContact} for approval?`,
+                        "The company admin will be notified to review and accept this batch in their USCIS account.",
+                        () => updateBatch(selectedBatch.id, {
+                          companyAdminApprovalStatus: "Pending",
+                          sentToAdminAt: "2026-05-06 10:00 CT",
+                          nextAction: `Awaiting approval from ${selectedBatch.adminContact}.`,
+                        }),
+                        "Send for Approval",
+                        false
+                      );
+                    }}
+                    style={{ ...primaryButton(!sendApprovalGate.allowed), width: "100%" }}
+                  >
+                    Send for Company Admin Approval
+                  </button>
+                  {!sendApprovalGate.allowed && <GateMessage reason={sendApprovalGate.reason} />}
+                </div>
+              )}
               {selectedBatch.companyAdminApprovalStatus === "Pending" && <button style={secondaryButton()}>Send Reminder</button>}
               {selectedBatch.companyAdminApprovalStatus === "Rejected" && <button style={secondaryButton()}>Edit Batch</button>}
               {selectedBatch.companyAdminApprovalStatus === "Rejected" && <button style={secondaryButton()}>Resend for Approval</button>}
@@ -992,9 +1211,30 @@ function FileTab({ state, batches, setBatches, setActiveTab }) {
                 </button>
               )}
               {selectedBatch.paymentStatus === "Complete" && selectedBatch.submissionStatus !== "Submitted" && (
-                <button onClick={() => updateBatch(selectedBatch.id, { submissionStatus: "Submitted", status: "Submitted", confirmationCaptureStatus: "Missing", nextAction: "Capture confirmation numbers." })} style={primaryButton()}>
-                  Mark Submitted
-                </button>
+                <div>
+                  <button
+                    disabled={!submitGate.allowed}
+                    onClick={() => {
+                      if (!submitGate.allowed) return;
+                      openConfirm(
+                        `Mark ${selectedBatch.id} as submitted to USCIS?`,
+                        `This records ${selectedBatch.beneficiaryCount} registration${selectedBatch.beneficiaryCount === 1 ? "" : "s"} as filed. Confirm Pay.gov payment is complete before proceeding.`,
+                        () => updateBatch(selectedBatch.id, {
+                          submissionStatus: "Submitted",
+                          status: "Submitted",
+                          confirmationCaptureStatus: "Missing",
+                          nextAction: "Capture confirmation numbers.",
+                        }),
+                        "Mark Submitted",
+                        false
+                      );
+                    }}
+                    style={{ ...primaryButton(!submitGate.allowed), width: "100%" }}
+                  >
+                    Mark Submitted
+                  </button>
+                  {!submitGate.allowed && <GateMessage reason={submitGate.reason} />}
+                </div>
               )}
               {selectedBatch.submissionStatus === "Submitted" && <button onClick={() => setActiveTab("Track")} style={primaryButton()}>Capture Confirmations</button>}
             </div>
@@ -1005,11 +1245,12 @@ function FileTab({ state, batches, setBatches, setActiveTab }) {
   );
 }
 
-function TrackTab({ state, beneficiaries, setBeneficiaries }) {
+function TrackTab({ state, beneficiaries, setBeneficiaries, currentRole }) {
   const submitted = state.clientBeneficiaries.filter((b) => b.filingStatus === "Submitted");
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState(submitted[0]?.id || null);
   const [confirmationInput, setConfirmationInput] = useState("");
   const selectedBeneficiary = beneficiaries.find((b) => b.id === selectedBeneficiaryId);
+  const captureGate = canAct(currentRole, "capture_confirmation", {});
 
   const updateBeneficiary = (id, patch) => {
     setBeneficiaries((prev) => prev.map((beneficiary) => beneficiary.id === id ? { ...beneficiary, ...patch } : beneficiary));
@@ -1052,15 +1293,30 @@ function TrackTab({ state, beneficiaries, setBeneficiaries }) {
             <h3 style={panelTitle()}>{selectedBeneficiary.name}</h3>
             <Detail label="Batch" value={selectedBeneficiary.batchId} />
             <Detail label="Confirmation status" value={selectedBeneficiary.confirmationStatus} />
-            <div style={{ display: "flex", gap: 8, margin: "8px 0 12px" }}>
-              <input value={confirmationInput} onChange={(event) => setConfirmationInput(event.target.value)} placeholder="Confirmation number" style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 10px" }} />
-              <button onClick={() => {
-                if (!confirmationInput.trim()) return;
-                updateBeneficiary(selectedBeneficiary.id, { confirmationStatus: "Captured", confirmationNumber: confirmationInput.trim(), uscisStatus: "Submitted" });
-                setConfirmationInput("");
-              }} style={primaryButton()}>Save</button>
+            <div style={{ margin: "8px 0 4px" }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                <input
+                  value={confirmationInput}
+                  onChange={(event) => setConfirmationInput(event.target.value)}
+                  placeholder="Confirmation number"
+                  disabled={!captureGate.allowed}
+                  style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 10px", opacity: captureGate.allowed ? 1 : 0.55 }}
+                />
+                <button
+                  disabled={!captureGate.allowed}
+                  onClick={() => {
+                    if (!confirmationInput.trim() || !captureGate.allowed) return;
+                    updateBeneficiary(selectedBeneficiary.id, { confirmationStatus: "Captured", confirmationNumber: confirmationInput.trim(), uscisStatus: "Submitted" });
+                    setConfirmationInput("");
+                  }}
+                  style={primaryButton(!captureGate.allowed)}
+                >
+                  Save
+                </button>
+              </div>
+              {!captureGate.allowed && <GateMessage reason={captureGate.reason} />}
             </div>
-            <button onClick={() => updateBeneficiary(selectedBeneficiary.id, { auditStatus: "Complete" })} style={{ ...secondaryButton(), width: "100%", marginBottom: 12 }}>
+            <button onClick={() => updateBeneficiary(selectedBeneficiary.id, { auditStatus: "Complete" })} style={{ ...secondaryButton(), width: "100%", marginBottom: 12, marginTop: 8 }}>
               Mark Audit Packet Complete
             </button>
             <button style={{ ...secondaryButton(), width: "100%", marginBottom: 12 }}>Download Audit Packet</button>
@@ -1071,7 +1327,7 @@ function TrackTab({ state, beneficiaries, setBeneficiaries }) {
                 const done = index < completeThrough;
                 return (
                   <div key={event} style={{ display: "flex", gap: 8, alignItems: "center", color: done ? "#0f7f5f" : "#64748b", fontSize: 12, fontWeight: 800 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done ? "#e9fbf4" : "#f7f9fc", border: `1px solid ${done ? "#b5ecd7" : "#dbe3ee"}` }}>{done ? "OK" : "--"}</span>
+                    <span style={{ width: 22, height: 22, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done ? "#e9fbf4" : "#f7f9fc", border: `1px solid ${done ? "#b5ecd7" : "#dbe3ee"}` }}>{done ? "✓" : "—"}</span>
                     {event}
                   </div>
                 );
@@ -1135,6 +1391,15 @@ export default function AlmaPrototype() {
   const [duplicateRisks, setDuplicateRisks] = useState(initialDuplicateRisks);
   const [batches, setBatches] = useState(initialBatches);
   const [templateGeneratedByClient, setTemplateGeneratedByClient] = useState({ acme: false, meridian: true, novabridge: true });
+  const [currentRole, setCurrentRole] = useState("Legal Ops");
+  const [confirmModal, setConfirmModal] = useState(null);
+
+  const openConfirm = (message, detail, onConfirm, confirmLabel = "Confirm", danger = false) => {
+    setConfirmModal({
+      message, detail, confirmLabel, danger,
+      onConfirm: () => { onConfirm(); setConfirmModal(null); },
+    });
+  };
 
   const selectedClient = clients.find((client) => client.id === selectedClientId) || clients[0];
   const state = useMemo(() => getClientState({
@@ -1150,16 +1415,37 @@ export default function AlmaPrototype() {
     setTemplateGeneratedByClient((prev) => ({ ...prev, [selectedClientId]: value }));
   };
 
+  const rc = roleColors[currentRole];
+
   return (
     <div style={{ minHeight: "100vh", background: "#f4f6fa", fontFamily: "'DM Sans', system-ui, sans-serif", color: "#172033" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+      {confirmModal && <ConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
       <div style={{ maxWidth: 1380, margin: "0 auto", padding: 24 }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <div>
             <div style={{ fontSize: 13, color: "#64748b", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.05em" }}>alma</div>
             <h1 style={{ margin: "2px 0 0", color: "#172033", fontSize: 30, lineHeight: 1.1, letterSpacing: 0, fontWeight: 900 }}>Alma H-1B Filing Cockpit</h1>
           </div>
-          <div style={{ color: "#64748b", fontSize: 12, fontWeight: 800 }}>FY2027 Cap Season</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+            <div style={{ color: "#64748b", fontSize: 12, fontWeight: 800 }}>FY2027 Cap Season</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, color: "#64748b", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em" }}>Demo — viewing as</span>
+              <select
+                value={currentRole}
+                onChange={(e) => setCurrentRole(e.target.value)}
+                style={{
+                  padding: "5px 10px", borderRadius: 8,
+                  border: `1px solid ${rc.border}`,
+                  background: rc.bg, color: rc.color,
+                  fontWeight: 800, fontFamily: "inherit", fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                {ROLES.map((r) => <option key={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
         </header>
 
         <CommandCenter selectedClientId={selectedClientId} setSelectedClientId={(id) => { setSelectedClientId(id); setActiveTab("Prepare"); }} state={state} setActiveTab={setActiveTab} />
@@ -1190,6 +1476,7 @@ export default function AlmaPrototype() {
               templateGenerated={templateGeneratedByClient[selectedClientId]}
               setTemplateGenerated={setTemplateGenerated}
               setActiveTab={setActiveTab}
+              currentRole={currentRole}
             />
           )}
           {activeTab === "Review" && (
@@ -1200,13 +1487,27 @@ export default function AlmaPrototype() {
               setDuplicateRisks={setDuplicateRisks}
               beneficiaries={beneficiaries}
               setBeneficiaries={setBeneficiaries}
+              currentRole={currentRole}
+              openConfirm={openConfirm}
             />
           )}
           {activeTab === "File" && (
-            <FileTab state={state} batches={batches} setBatches={setBatches} setActiveTab={setActiveTab} />
+            <FileTab
+              state={state}
+              batches={batches}
+              setBatches={setBatches}
+              setActiveTab={setActiveTab}
+              currentRole={currentRole}
+              openConfirm={openConfirm}
+            />
           )}
           {activeTab === "Track" && (
-            <TrackTab state={state} beneficiaries={beneficiaries} setBeneficiaries={setBeneficiaries} />
+            <TrackTab
+              state={state}
+              beneficiaries={beneficiaries}
+              setBeneficiaries={setBeneficiaries}
+              currentRole={currentRole}
+            />
           )}
         </Card>
       </div>
